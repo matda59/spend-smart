@@ -1,7 +1,9 @@
+# Unraid: do not start this file from the terminal. Add the container from the Docker page.
+# See the Unraid section of the README. This file is for a local Docker build.
 services:
   household:
     build: .
-    image: household-budget
+    image: ghcr.io/matda59/spend-smart:latest
     ports:
       - "3847:3847"
     environment:

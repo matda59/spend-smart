@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>spend-smart</Name>
+  <Repository>ghcr.io/matda59/spend-smart:latest</Repository>
+  <Registry>https://github.com/matda59/spend-smart/pkgs/container/spend-smart</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/matda59/spend-smart</Support>
+  <Project>https://github.com/matda59/spend-smart</Project>
+  <Overview>A household budget for two people, using the MoneySmart categories. Essentials, discretionary spending, and money set aside stay separate. Amounts you type are stored only in the SQLite file on the array, not in the image.</Overview>
+  <Category>Finance:</Category>
+  <WebUI>http://[IP]:[PORT:3847]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/matda59/spend-smart/main/unraid/spend-smart.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/matda59/spend-smart/main/unraid/icon.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="WebUI" Target="3847" Default="3847" Mode="tcp" Description="Port for the budget page." Type="Port" Display="always" Required="true" Mask="false">3847</Config>
+  <Config Name="Appdata" Target="/data" Default="/mnt/user/appdata/spend-smart" Mode="rw" Description="SQLite database. Your figures live here and survive container updates." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/spend-smart</Config>
+  <Config Name="Passphrase" Target="BUDGET_PASSWORD" Default="" Mode="" Description="Optional. Leave blank and set a passphrase in the app instead. Anyone who can open the page can edit the budget until a passphrase is set." Type="Variable" Display="always" Required="false" Mask="true"></Config>
+</Container>

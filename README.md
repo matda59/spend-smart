@@ -19,51 +19,34 @@ Anyone who can open the address can edit the budget until you set a passphrase. 
 
 This is a plan, the same kind of snapshot as the MoneySmart sheet. It does not import bank transactions or compare a month with what you actually spent.
 
-## Build the container on Unraid
+## Install it on Unraid
 
-There is no image to pull in the Unraid Docker tab. The server builds the container from this repository. Your figures are written only to a file on the Unraid array.
+Use the Docker page. A container started with `docker compose` from the terminal is outside that page: it has no WebUI link, Check for Updates does not see it, and a later install from the GUI can collide with it.
 
-Open the Unraid web terminal (the `>_` button) or SSH in as root, then paste:
+The image is published from this repository to `ghcr.io/matda59/spend-smart`. Unraid pulls that image. Your figures stay in a folder on the array.
 
-```bash
-mkdir -p /mnt/user/appdata
-cd /mnt/user/appdata
-git clone https://github.com/matda59/spend-smart.git
-cd spend-smart
-docker compose up -d --build
-```
+If a copy is already running from the terminal, open the Docker tab, stop that container, and remove it before adding this one. Leave the appdata folder if you want to keep figures you already typed.
 
-The repository is public and contains no household figures, so Unraid can clone it without a GitHub login. The first build takes a few minutes. It does not download a pre-made image.
+1. Open the **Docker** tab and click **Add Container**.
+2. Switch to the advanced view if you want the icon and WebUI fields. Set:
+   - **Name:** `spend-smart`
+   - **Repository:** `ghcr.io/matda59/spend-smart:latest`
+   - **Icon URL:** `https://raw.githubusercontent.com/matda59/spend-smart/main/unraid/icon.png`
+   - **WebUI:** `http://[IP]:[PORT:3847]/`
+   - **Network Type:** Bridge
+3. **Add another Path, Port, Variable, Label or Device.**
+   - Port. Container port `3847`, host port `3847`, TCP.
+   - Path. Container path `/data`, host path `/mnt/user/appdata/spend-smart`, read/write.
+   - Variable, optional. Name `BUDGET_PASSWORD`, value a passphrase. Leave it out to set the passphrase in the app.
+4. Click **Apply**. Unraid pulls the image and starts the container. Open it from the WebUI icon.
 
-When it finishes, open `http://<your-unraid-ip>:3847`.
+The same fields are in `unraid/spend-smart.xml` if you keep your own templates. Unraid stores the container you create under the Docker tab, linked to that image repository.
 
-To update later, from the same folder:
+### Updates
 
-```bash
-cd /mnt/user/appdata/spend-smart
-git pull
-docker compose up -d --build
-```
+On the Docker tab, click **Check for Updates**. When this repository publishes a new image, that container shows **Update**. Applying it replaces the program and leaves `/mnt/user/appdata/spend-smart` in place. Back that folder up with the rest of your appdata.
 
-That rebuilds the container. It does not replace `data/budget.sqlite`.
-
-The budget is stored at:
-
-`/mnt/user/appdata/spend-smart/data/budget.sqlite`
-
-That file is created on first start. Rebuilding or updating the container leaves it in place. Back it up with the rest of your appdata. Do not commit it.
-
-Before the page is reachable beyond your house, set a passphrase in `docker-compose.yml`:
-
-```yaml
-BUDGET_PASSWORD: "choose-a-long-passphrase"
-```
-
-Then run `docker compose up -d` again from the same folder.
-
-If `docker compose` is not found, install **Compose Manager** from Community Applications and run the `docker compose` command again.
-
-To clear a forgotten passphrase that was set inside the app, stop the container, set `BUDGET_RESET_PASSWORD=1`, start it once, then remove that variable and start it again. A passphrase set with `BUDGET_PASSWORD` is cleared by editing that variable.
+To clear a forgotten passphrase that was set inside the app, edit the container, add a variable named `BUDGET_RESET_PASSWORD` with the value `1`, apply it once, then remove that variable and apply again. A passphrase set with `BUDGET_PASSWORD` is cleared by editing that variable.
 
 ## Run it locally
 
