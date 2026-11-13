@@ -40,6 +40,18 @@ docker compose up -d --build
 
 When it finishes, open `http://<your-unraid-ip>:3847`.
 
+This repository is private to your Cursor account. Origin does not offer a public setting for a personal repository, so Unraid signs in once with `origin auth login` and can pull after that.
+
+To update later, from the same folder:
+
+```bash
+cd /mnt/user/appdata/spend-smart
+git pull
+docker compose up -d --build
+```
+
+That rebuilds the container. It does not replace `data/budget.sqlite`.
+
 The budget is stored at:
 
 `/mnt/user/appdata/spend-smart/data/budget.sqlite`
