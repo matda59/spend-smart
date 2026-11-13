@@ -1,0 +1,15 @@
+services:
+  household:
+    build: .
+    image: household-budget
+    ports:
+      - "3847:3847"
+    environment:
+      PORT: "3847"
+      HOSTNAME: "0.0.0.0"
+      DATABASE_PATH: /data/budget.sqlite
+      # Uncomment and set this before the app is reachable beyond your home network.
+      # BUDGET_PASSWORD: "choose-a-long-passphrase"
+    volumes:
+      - ${BUDGET_DATA_DIR:-./data}:/data
+    restart: unless-stopped

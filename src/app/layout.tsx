@@ -1,0 +1,31 @@
+import type { Metadata } from "next";
+import { Fraunces, Source_Sans_3 } from "next/font/google";
+import "./globals.css";
+
+const source = Source_Sans_3({
+  subsets: ["latin"],
+  variable: "--font-source",
+});
+
+const display = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display-family",
+});
+
+export const metadata: Metadata = {
+  title: "Household budget",
+  description:
+    "A shared household budget with MoneySmart categories, fortnightly and monthly totals, and the non-discretionary lines kept separate.",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en-AU" className={`${source.variable} ${display.variable} h-full`}>
+      <body className="min-h-full antialiased">{children}</body>
+    </html>
+  );
+}
