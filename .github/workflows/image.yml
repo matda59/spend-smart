@@ -43,6 +43,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh api --method PATCH \
+          gh api /user/packages?package_type=container --jq '.[] | {name, visibility}' || true
+          for path in \
             /user/packages/container/spend-smart/visibility \
-            -f visibility=public
+            /users/${{ github.repository_owner }}/packages/container/spend-smart/visibility
+          do
+            if gh api --method PATCH "$path" -f visibility=public; then
+              exit 0
+            fi
+          done
+          echo "The image is published. A private package still needs one public switch in GitHub package settings."
+          exit 1
