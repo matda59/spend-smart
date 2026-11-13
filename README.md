@@ -26,21 +26,16 @@ There is no image to pull in the Unraid Docker tab. The server builds the contai
 Open the Unraid web terminal (the `>_` button) or SSH in as root, then paste:
 
 ```bash
-curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-origin auth login
 mkdir -p /mnt/user/appdata
 cd /mnt/user/appdata
-origin repo clone matda59/spend-smart
+git clone https://github.com/matda59/spend-smart.git
 cd spend-smart
 docker compose up -d --build
 ```
 
-`origin auth login` prints a link. Open that link on your computer and approve it. The terminal on Unraid then continues, clones the repository, and builds the container. The first build takes a few minutes. It does not download a pre-made image.
+The repository is public and contains no household figures, so Unraid can clone it without a GitHub login. The first build takes a few minutes. It does not download a pre-made image.
 
 When it finishes, open `http://<your-unraid-ip>:3847`.
-
-This repository is private to your Cursor account. Origin does not offer a public setting for a personal repository, so Unraid signs in once with `origin auth login` and can pull after that.
 
 To update later, from the same folder:
 
@@ -67,13 +62,6 @@ BUDGET_PASSWORD: "choose-a-long-passphrase"
 Then run `docker compose up -d` again from the same folder.
 
 If `docker compose` is not found, install **Compose Manager** from Community Applications and run the `docker compose` command again.
-
-If `origin` is not found after install:
-
-```bash
-echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
-source ~/.bashrc
-```
 
 To clear a forgotten passphrase that was set inside the app, stop the container, set `BUDGET_RESET_PASSWORD=1`, start it once, then remove that variable and start it again. A passphrase set with `BUDGET_PASSWORD` is cleared by editing that variable.
 
