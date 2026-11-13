@@ -11,5 +11,6 @@ services:
       # Uncomment and set this before the app is reachable beyond your home network.
       # BUDGET_PASSWORD: "choose-a-long-passphrase"
     volumes:
+      # The budget database. On Unraid this is a folder on your array, not part of the image.
       - ${BUDGET_DATA_DIR:-./data}:/data
     restart: unless-stopped

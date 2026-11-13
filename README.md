@@ -19,38 +19,49 @@ Anyone who can open the address can edit the budget until you set a passphrase. 
 
 This is a plan, the same kind of snapshot as the MoneySmart sheet. It does not import bank transactions or compare a month with what you actually spent.
 
-## Run it on Unraid
+## Build the container on Unraid
 
-Unraid cannot pull an image of this app. Copy this repository onto the server and build it there. The personal figures never need to leave that machine.
+There is no image to pull in the Unraid Docker tab. The server builds the container from this repository. Your figures are written only to a file on the Unraid array.
 
-In Unraid, install the Compose plugin if you do not already have it. Put the repository in a folder such as `/mnt/user/appdata/household-budget`.
-
-```yaml
-services:
-  household:
-    build: .
-    image: household-budget
-    ports:
-      - "3847:3847"
-    environment:
-      DATABASE_PATH: /data/budget.sqlite
-      # BUDGET_PASSWORD: "choose-a-long-passphrase"
-    volumes:
-      - /mnt/user/appdata/household-budget/data:/data
-    restart: unless-stopped
-```
-
-Keep the source folder and the `data` folder separate. The database file is `/mnt/user/appdata/household-budget/data/budget.sqlite`. Back that file up with the rest of your appdata. Do not copy it back into the git repository.
-
-From the source folder:
+Open the Unraid web terminal (the `>_` button) or SSH in as root, then paste:
 
 ```bash
+curl -fsSL https://downloads.cursor.com/origin/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+origin auth login
+mkdir -p /mnt/user/appdata
+cd /mnt/user/appdata
+origin repo clone matda59/spend-smart
+cd spend-smart
 docker compose up -d --build
 ```
 
-Open `http://<your-unraid-ip>:3847`.
+`origin auth login` prints a link. Open that link on your computer and approve it. The terminal on Unraid then continues, clones the repository, and builds the container. The first build takes a few minutes. It does not download a pre-made image.
 
-The first start creates an empty MoneySmart budget. Later starts keep whatever you have edited. Rebuilding the container does not wipe the database, because it lives on the volume.
+When it finishes, open `http://<your-unraid-ip>:3847`.
+
+The budget is stored at:
+
+`/mnt/user/appdata/spend-smart/data/budget.sqlite`
+
+That file is created on first start. Rebuilding or updating the container leaves it in place. Back it up with the rest of your appdata. Do not commit it.
+
+Before the page is reachable beyond your house, set a passphrase in `docker-compose.yml`:
+
+```yaml
+BUDGET_PASSWORD: "choose-a-long-passphrase"
+```
+
+Then run `docker compose up -d` again from the same folder.
+
+If `docker compose` is not found, install **Compose Manager** from Community Applications and run the `docker compose` command again.
+
+If `origin` is not found after install:
+
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
 
 To clear a forgotten passphrase that was set inside the app, stop the container, set `BUDGET_RESET_PASSWORD=1`, start it once, then remove that variable and start it again. A passphrase set with `BUDGET_PASSWORD` is cleared by editing that variable.
 
