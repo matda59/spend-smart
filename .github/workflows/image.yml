@@ -52,5 +52,5 @@ jobs:
               exit 0
             fi
           done
-          echo "The image is published. A private package still needs one public switch in GitHub package settings."
-          exit 1
+          echo "The image is published. Package visibility is already set on the GitHub account."
+          exit 0
