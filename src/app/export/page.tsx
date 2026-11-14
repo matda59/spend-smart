@@ -33,11 +33,19 @@ export default async function ExportPage() {
           <Button variant="outline" size="sm" asChild>
             <Link href="/">Back to the budget</Link>
           </Button>
-          <div className="flex flex-wrap items-center gap-2">
-            <ThemeToggle />
-            <Button variant="outline" size="sm" asChild>
-              <a href={`/export/spreadsheet`} download={filename}>
-                Download spreadsheet
+          <ThemeToggle />
+        </div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-display text-4xl">Export</h1>
+            <p className="mt-2 max-w-xl text-muted-foreground">
+              This is the advisor pack. Export the spreadsheet, or export a PDF from the print dialog.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" asChild>
+              <a href="/export/spreadsheet" download={filename}>
+                Export spreadsheet
               </a>
             </Button>
             <PrintPackButton />
@@ -48,7 +56,7 @@ export default async function ExportPage() {
 
       <article className="advisor-sheet mt-8 rounded-3xl bg-card px-5 py-8 ring-1 ring-foreground/10 sm:px-8">
         <p className="text-sm font-medium tracking-wide text-primary uppercase">Advisor pack</p>
-        <h1 className="font-display mt-1 text-4xl sm:text-5xl">{name}</h1>
+        <h2 className="font-display mt-1 text-4xl sm:text-5xl">{name}</h2>
         <p className="mt-2 text-muted-foreground">Household budget, prepared {prepared}.</p>
         {profile.advisorNote.trim() ? (
           <p className="mt-4 max-w-3xl whitespace-pre-wrap">{profile.advisorNote.trim()}</p>

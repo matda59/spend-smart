@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 export function PrintPackButton() {
   return (
     <Button type="button" onClick={() => window.print()}>
-      Print or save as PDF
+      Export as PDF
     </Button>
   );
 }

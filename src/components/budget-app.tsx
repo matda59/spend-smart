@@ -198,7 +198,7 @@ export function BudgetApp({
         <div className="no-print flex flex-wrap items-center gap-2">
           <ThemeToggle />
           <Button variant="outline" size="sm" asChild>
-            <Link href="/export">Advisor pack</Link>
+            <Link href="/export">Export</Link>
           </Button>
           <PassphraseDialog envLocked={envLocked} storedPassword={storedPassword} />
           <Button
