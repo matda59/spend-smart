@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { CATALOG } from "../src/lib/catalog";
-import { formatAud, parseDollars, summarise, viewCents } from "../src/lib/money";
+import { formatAud, parseDollars, shareOf, summarise, viewCents } from "../src/lib/money";
 import type { BudgetItem } from "../src/lib/types";
 
 function asItems(): BudgetItem[] {
@@ -89,6 +89,15 @@ test("dollar entry accepts blanks, commas, and cents", () => {
   assert.deepEqual(parseDollars("  $1,200.50 "), { ok: true, cents: 120_050 });
   assert.equal(parseDollars("-5").ok, false);
   assert.equal(parseDollars("12.345").ok, false);
+});
+
+test("shares of income stay readable", () => {
+  assert.equal(shareOf(150_000, 400_000), "37.5%");
+  assert.equal(shareOf(400_000, 400_000), "100%");
+  assert.equal(shareOf(0, 400_000), "0%");
+  assert.equal(shareOf(100, 400_000), "<1%");
+  assert.equal(shareOf(-50_000, 400_000), "−12.5%");
+  assert.equal(shareOf(100, 0), null);
 });
 
 test("catalog ids are unique", () => {

@@ -11,7 +11,7 @@ Open the budget. The figure at the top is what is left after essentials, for the
 - Type an amount and choose how often it is paid. Periods match the MoneySmart sheet: 52 weeks, 26 fortnights, 12 months, 4 quarters, 1 year.
 - A blank amount is ignored. Zero means you entered zero.
 - Essentials are the non-discretionary lines. Drag a line by its handle into another group, or use the row menu to move it.
-- The bars split every filled line into its own colour. Hover a colour to see that line.
+- The bars split every filled line into its own colour. Each figure shows its share of income. Hover a colour to see that line.
 - Savings and extra super sit under **Set aside**. They reduce what is left over, and they are not counted as spending.
 - Discretionary lines (eating out, holidays, clothing, pay TV, and similar) stay tucked away until you open them.
 - Add a line, rename one, or hide one you do not use. Added lines can be removed. Built-in lines can be hidden and restored.

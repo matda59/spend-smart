@@ -75,6 +75,18 @@ export function summarise(items: BudgetItem[], view: Frequency): Totals {
   };
 }
 
+/** Share of a total, for example 37.5% of income. Null when there is no total to share. */
+export function shareOf(part: number, whole: number): string | null {
+  if (!(whole > 0) || !Number.isFinite(part)) return null;
+  const sign = part < 0 ? "−" : "";
+  const pct = (Math.abs(part) / whole) * 100;
+  if (pct === 0) return "0%";
+  if (pct < 0.5) return `${sign}<1%`;
+  const tenths = Math.round(pct * 10) / 10;
+  const text = Math.abs(tenths - Math.round(tenths)) < 0.05 ? String(Math.round(tenths)) : tenths.toFixed(1);
+  return `${sign}${text}%`;
+}
+
 export function formatAud(cents: number): string {
   const dollars = cents / 100;
   const whole = Math.abs(dollars - Math.round(dollars)) < 0.005;

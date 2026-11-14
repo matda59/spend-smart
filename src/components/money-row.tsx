@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { FREQUENCY_LABEL, formatAud, formatPlain, parseDollars, viewCents } from "@/lib/money";
+import { FREQUENCY_LABEL, formatAud, formatPlain, parseDollars, shareOf, viewCents } from "@/lib/money";
 import {
   FREQUENCIES,
   SECTIONS,
@@ -31,6 +31,7 @@ const KIND_LABEL: Record<Exclude<Kind, "income">, string> = {
 export function MoneyRow({
   item,
   view,
+  incomeCents,
   swatch,
   onPatch,
   onDelete,
@@ -40,6 +41,7 @@ export function MoneyRow({
 }: {
   item: BudgetItem;
   view: Frequency;
+  incomeCents: number;
   swatch: string;
   onPatch: (patch: {
     name?: string;
@@ -68,6 +70,7 @@ export function MoneyRow({
 
   const converted =
     item.amountCents == null ? null : viewCents(item.amountCents, item.frequency, view);
+  const share = converted == null ? null : shareOf(converted, incomeCents);
   const sectionLabel = SECTIONS.find((section) => section.id === item.section)?.label;
 
   return (
@@ -149,9 +152,12 @@ export function MoneyRow({
           </option>
         ))}
       </select>
-      <p className="text-right text-sm font-medium tabular-nums sm:text-base">
-        {converted == null ? <span className="text-muted-foreground">—</span> : formatAud(converted)}
-      </p>
+      <div className="text-right">
+        <p className="text-sm font-medium tabular-nums sm:text-base">
+          {converted == null ? <span className="text-muted-foreground">—</span> : formatAud(converted)}
+        </p>
+        {share ? <p className="text-xs text-muted-foreground tabular-nums">{share} of income</p> : null}
+      </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" size="icon-sm" className="no-print justify-self-end" aria-label={`Options for ${item.name}`}>

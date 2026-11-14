@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { placeLine } from "@/lib/arrange";
 import { groupColor } from "@/lib/bars";
-import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, summarise } from "@/lib/money";
+import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, shareOf, summarise } from "@/lib/money";
 import {
   SECTIONS,
   type BudgetItem,
@@ -51,6 +51,10 @@ export function BudgetApp({
   );
   const discretionaryOpen = showDiscretionary || discretionaryHasAmount || dragId != null;
   const short = totals.leftAfterEssentials < 0;
+  const essentialShare = shareOf(totals.essential, totals.income);
+  const discretionaryShare = shareOf(totals.discretionary, totals.income);
+  const setAsideShare = shareOf(totals.setAside, totals.income);
+  const leftOverShare = shareOf(totals.leftOver, totals.income);
 
   function patchItem(id: string, patch: Parameters<typeof saveItem>[1]) {
     setError(null);
@@ -153,6 +157,7 @@ export function BudgetApp({
             <MoneyRow
               item={item}
               view={view}
+              incomeCents={totals.income}
               swatch={groupColor(item.kind)}
               onPatch={(patch) => patchItem(item.id, patch)}
               onDelete={() => deleteRow(item.id)}
@@ -243,10 +248,10 @@ export function BudgetApp({
         </div>
         <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-5">
           <Stat label="Income" value={totals.income} />
-          <Stat label="Essentials" value={totals.essential} />
-          <Stat label="Discretionary" value={totals.discretionary} />
-          <Stat label="Set aside" value={totals.setAside} />
-          <Stat label="Left over" value={totals.leftOver} emphasize />
+          <Stat label="Essentials" value={totals.essential} share={essentialShare} />
+          <Stat label="Discretionary" value={totals.discretionary} share={discretionaryShare} />
+          <Stat label="Set aside" value={totals.setAside} share={setAsideShare} />
+          <Stat label="Left over" value={totals.leftOver} share={leftOverShare} emphasize />
         </dl>
         <ShareBar items={items} view={view} />
       </section>
@@ -277,6 +282,7 @@ export function BudgetApp({
         title="Essentials"
         description="Non-discretionary spending: housing, bills, food, insurance, transport, and care. Blank lines are waiting to be filled in and are left out of the totals."
         total={totals.essential}
+        share={essentialShare}
         view={view}
       >
         {SECTIONS.filter((section) => section.id !== "income").map((section) => {
@@ -302,6 +308,7 @@ export function BudgetApp({
         title="Set aside"
         description="Savings, extra super, and investments. This is money you keep, so it comes out of what is left over and is not treated as spending."
         total={totals.setAside}
+        share={setAsideShare}
         view={view}
       >
         <ColumnHead view={view} />
@@ -322,7 +329,10 @@ export function BudgetApp({
               {discretionaryHasAmount ? "" : " Nothing is entered here yet."}
             </p>
           </div>
-          <p className="text-sm font-medium tabular-nums">{formatAud(totals.discretionary)} a {PERIOD_NOUN[view]}</p>
+          <p className="text-sm font-medium tabular-nums">
+            {formatAud(totals.discretionary)} a {PERIOD_NOUN[view]}
+            {discretionaryShare ? ` · ${discretionaryShare} of income` : ""}
+          </p>
         </div>
         {discretionaryOpen ? (
           <div className="mt-4">
@@ -379,13 +389,24 @@ export function BudgetApp({
   );
 }
 
-function Stat({ label, value, emphasize = false }: { label: string; value: number; emphasize?: boolean }) {
+function Stat({
+  label,
+  value,
+  share = null,
+  emphasize = false,
+}: {
+  label: string;
+  value: number;
+  share?: string | null;
+  emphasize?: boolean;
+}) {
   return (
     <div>
       <dt className="text-xs tracking-wide text-muted-foreground uppercase">{label}</dt>
       <dd className={`mt-1 text-lg font-medium tabular-nums ${emphasize && value < 0 ? "text-destructive" : ""}`}>
         {formatAud(value)}
       </dd>
+      {share ? <p className={`text-xs tabular-nums ${value < 0 ? "text-destructive" : "text-muted-foreground"}`}>{share} of income</p> : null}
     </div>
   );
 }
@@ -394,12 +415,14 @@ function Group({
   title,
   description,
   total,
+  share = null,
   view,
   children,
 }: {
   title: string;
   description: string;
   total: number;
+  share?: string | null;
   view: Frequency;
   children: ReactNode;
 }) {
@@ -412,6 +435,7 @@ function Group({
         </div>
         <p className="text-sm font-medium tabular-nums">
           {formatAud(total)} a {PERIOD_NOUN[view]}
+          {share ? ` · ${share} of income` : ""}
         </p>
       </div>
       <div className="mt-4">{children}</div>
