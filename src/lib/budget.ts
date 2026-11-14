@@ -73,11 +73,11 @@ export function updateItem(id: string, patch: ItemPatch): string | null {
   if (!(KINDS as readonly string[]).includes(next.kind)) {
     return "Choose where this line belongs.";
   }
-  if (existing.kind === "income" && next.kind !== "income") {
-    return "Income lines stay in income. Add a spending line instead.";
+  if (next.kind === "income" && existing.section !== "income") {
+    return "Move income lines from the row menu or by dragging them.";
   }
-  if (existing.kind !== "income" && next.kind === "income") {
-    return "Add income from the income section.";
+  if (existing.section === "income" && next.kind !== "income") {
+    return "Move this line from the row menu or by dragging it.";
   }
   if (next.amount_cents != null) {
     if (!Number.isInteger(next.amount_cents) || next.amount_cents < 0 || next.amount_cents > 100_000_000_00) {
@@ -140,6 +140,39 @@ export function addItem(input: {
     )
     .run(item.id, item.section, item.name, item.frequency, item.kind, item.sort);
   return { item };
+}
+
+export function arrangeItems(
+  entries: { id: string; kind: Kind; section: SectionId; sort: number }[],
+): string | null {
+  const db = getDb();
+  const existing = db.prepare("SELECT id FROM items").all() as { id: string }[];
+  if (entries.length !== existing.length) return "The budget changed. Reload and try again.";
+  const ids = new Set(entries.map((entry) => entry.id));
+  if (ids.size !== entries.length) return "The budget changed. Reload and try again.";
+  for (const row of existing) {
+    if (!ids.has(row.id)) return "The budget changed. Reload and try again.";
+  }
+  for (const entry of entries) {
+    if (!(KINDS as readonly string[]).includes(entry.kind)) return "Choose where this line belongs.";
+    if (!sectionIds().has(entry.section)) return "Choose a section.";
+    if (entry.kind === "income" && entry.section !== "income") {
+      return "Income lines sit in the income group.";
+    }
+    if (entry.kind !== "income" && entry.section === "income") {
+      return "Choose a spending group for this line.";
+    }
+    if (!Number.isInteger(entry.sort)) return "The budget changed. Reload and try again.";
+  }
+
+  const write = db.transaction(() => {
+    const statement = db.prepare("UPDATE items SET kind = ?, section = ?, sort = ? WHERE id = ?");
+    for (const entry of entries) {
+      statement.run(entry.kind, entry.section, entry.sort, entry.id);
+    }
+  });
+  write();
+  return null;
 }
 
 export function deleteItem(id: string): string | null {

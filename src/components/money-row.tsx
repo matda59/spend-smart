@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { GripVertical, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ import {
   type BudgetItem,
   type Frequency,
   type Kind,
+  type SectionId,
 } from "@/lib/types";
 
 const KIND_LABEL: Record<Exclude<Kind, "income">, string> = {
@@ -30,11 +31,16 @@ const KIND_LABEL: Record<Exclude<Kind, "income">, string> = {
 export function MoneyRow({
   item,
   view,
+  swatch,
   onPatch,
   onDelete,
+  onPlace,
+  onDragStart,
+  onDragEnd,
 }: {
   item: BudgetItem;
   view: Frequency;
+  swatch: string;
   onPatch: (patch: {
     name?: string;
     amountCents?: number | null;
@@ -43,6 +49,9 @@ export function MoneyRow({
     hidden?: boolean;
   }) => void;
   onDelete: () => void;
+  onPlace: (dest: { kind: Kind; section: SectionId }) => void;
+  onDragStart: () => void;
+  onDragEnd: () => void;
 }) {
   const [name, setName] = useState(item.name);
   const [amount, setAmount] = useState(item.amountCents == null ? "" : formatPlain(item.amountCents));
@@ -63,7 +72,23 @@ export function MoneyRow({
 
   return (
     <div className="grid grid-cols-1 gap-2 border-b border-border/70 py-3 sm:grid-cols-[minmax(0,1.4fr)_8.75rem_10.25rem_7.5rem_2.25rem] sm:items-center sm:gap-3">
-      <div className="min-w-0">
+      <div className="flex min-w-0 items-start gap-1">
+        <button
+          type="button"
+          draggable
+          aria-label={`Drag ${item.name} to another group`}
+          className="no-print mt-1.5 cursor-grab text-muted-foreground active:cursor-grabbing"
+          onDragStart={(event) => {
+            event.dataTransfer.setData("text/plain", item.id);
+            event.dataTransfer.effectAllowed = "move";
+            onDragStart();
+          }}
+          onDragEnd={onDragEnd}
+        >
+          <GripVertical className="size-4" />
+        </button>
+        <span className="mt-3 size-2.5 shrink-0 rounded-full" style={{ background: swatch }} aria-hidden />
+        <div className="min-w-0 flex-1">
         <Input
           aria-label={`Name for ${item.name}`}
           value={name}
@@ -78,6 +103,7 @@ export function MoneyRow({
         {sectionLabel && item.kind !== "income" ? (
           <p className="px-2 text-xs text-muted-foreground sm:hidden">{sectionLabel}</p>
         ) : null}
+        </div>
       </div>
       <div>
         <div className="relative">
@@ -133,22 +159,43 @@ export function MoneyRow({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          {item.kind === "income" ? (
-            <DropdownMenuLabel>Income line</DropdownMenuLabel>
-          ) : (
-            <>
-              <DropdownMenuLabel>Move to</DropdownMenuLabel>
-              {(Object.keys(KIND_LABEL) as Array<Exclude<Kind, "income">>).map((kind) => (
-                <DropdownMenuItem
-                  key={kind}
-                  disabled={item.kind === kind}
-                  onSelect={() => onPatch({ kind })}
-                >
-                  {KIND_LABEL[kind]}
-                </DropdownMenuItem>
-              ))}
-            </>
-          )}
+          <DropdownMenuLabel>Move to</DropdownMenuLabel>
+          <DropdownMenuItem
+            disabled={item.kind === "income"}
+            onSelect={() => onPlace({ kind: "income", section: "income" })}
+          >
+            Income
+          </DropdownMenuItem>
+          {(Object.keys(KIND_LABEL) as Array<Exclude<Kind, "income">>).map((kind) => (
+            <DropdownMenuItem
+              key={kind}
+              disabled={item.kind === kind}
+              onSelect={() =>
+                onPlace({
+                  kind,
+                  section: item.section === "income" ? "added" : item.section,
+                })
+              }
+            >
+              {KIND_LABEL[kind]}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>Section</DropdownMenuLabel>
+          {SECTIONS.filter((section) => section.id !== "income").map((section) => (
+            <DropdownMenuItem
+              key={section.id}
+              disabled={item.kind !== "income" && item.section === section.id}
+              onSelect={() =>
+                onPlace({
+                  kind: item.kind === "income" ? "essential" : item.kind,
+                  section: section.id,
+                })
+              }
+            >
+              {section.label}
+            </DropdownMenuItem>
+          ))}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => onPatch({ hidden: true })}>Hide</DropdownMenuItem>
           {item.custom ? (

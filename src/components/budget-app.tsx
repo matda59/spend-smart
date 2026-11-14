@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState, useTransition, type ReactNode } from "react";
+import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { createItem, lockBudget, removeItem, saveItem } from "@/app/actions";
+import { createItem, lockBudget, removeItem, saveArrangement, saveItem } from "@/app/actions";
 import { MoneyRow } from "@/components/money-row";
 import { PassphraseDialog } from "@/components/passphrase-dialog";
+import { ShareBar } from "@/components/share-bar";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { placeLine } from "@/lib/arrange";
+import { groupColor } from "@/lib/bars";
 import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, summarise } from "@/lib/money";
 import {
   SECTIONS,
@@ -35,6 +38,8 @@ export function BudgetApp({
   const [error, setError] = useState<string | null>(null);
   const [showDiscretionary, setShowDiscretionary] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const dragIdRef = useRef<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const totals = useMemo(() => summarise(items, view), [items, view]);
@@ -44,7 +49,7 @@ export function BudgetApp({
   const discretionaryHasAmount = items.some(
     (item) => item.kind === "discretionary" && !item.hidden && item.amountCents != null,
   );
-  const discretionaryOpen = showDiscretionary || discretionaryHasAmount;
+  const discretionaryOpen = showDiscretionary || discretionaryHasAmount || dragId != null;
   const short = totals.leftAfterEssentials < 0;
 
   function patchItem(id: string, patch: Parameters<typeof saveItem>[1]) {
@@ -54,6 +59,19 @@ export function BudgetApp({
     );
     startTransition(async () => {
       const result = await saveItem(id, patch);
+      if (!result.ok) setError(result.error);
+    });
+  }
+
+  function moveLine(id: string, dest: { kind: Kind; section: SectionId; index: number }) {
+    const next = placeLine(items, { id, ...dest });
+    if (!next || next === items) return;
+    setError(null);
+    setItems(next);
+    startTransition(async () => {
+      const result = await saveArrangement(
+        next.map((item) => ({ id: item.id, kind: item.kind, section: item.section, sort: item.sort })),
+      );
       if (!result.ok) setError(result.error);
     });
   }
@@ -77,6 +95,88 @@ export function BudgetApp({
     });
   }
 
+  function deleteRow(id: string) {
+    startTransition(async () => {
+      const result = await removeItem(id);
+      if (!result.ok) setError(result.error);
+      else setItems((current) => current.filter((row) => row.id !== id));
+    });
+  }
+
+  function renderLines(rows: BudgetItem[], kind: Kind, section: SectionId) {
+    function destination(id: string) {
+      if (kind === "income") return { kind: "income" as const, section: "income" as const };
+      if (kind === "set_aside") {
+        const dragged = items.find((item) => item.id === id);
+        return {
+          kind: "set_aside" as const,
+          section: dragged && dragged.section !== "income" ? dragged.section : ("added" as const),
+        };
+      }
+      return { kind, section };
+    }
+
+    return (
+      <div
+        onDragOver={(event) => {
+          if (!dragIdRef.current) return;
+          event.preventDefault();
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          const id = event.dataTransfer.getData("text/plain") || dragIdRef.current;
+          if (!id) return;
+          moveLine(id, { ...destination(id), index: rows.length });
+          dragIdRef.current = null;
+          setDragId(null);
+        }}
+      >
+        {rows.map((item, index) => (
+          <div
+            key={item.id}
+            onDragOver={(event) => {
+              if (!dragIdRef.current || dragIdRef.current === item.id) return;
+              event.preventDefault();
+              event.stopPropagation();
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              const id = event.dataTransfer.getData("text/plain") || dragIdRef.current;
+              if (!id || id === item.id) return;
+              moveLine(id, { ...destination(id), index });
+              dragIdRef.current = null;
+              setDragId(null);
+            }}
+            className={dragId && dragId !== item.id ? "rounded-lg hover:bg-primary/10" : undefined}
+          >
+            <MoneyRow
+              item={item}
+              view={view}
+              swatch={groupColor(item.kind)}
+              onPatch={(patch) => patchItem(item.id, patch)}
+              onDelete={() => deleteRow(item.id)}
+              onPlace={(dest) => moveLine(item.id, { ...dest, index: 9999 })}
+              onDragStart={() => {
+                dragIdRef.current = item.id;
+                setDragId(item.id);
+              }}
+              onDragEnd={() => {
+                dragIdRef.current = null;
+                setDragId(null);
+              }}
+            />
+          </div>
+        ))}
+        {dragId && rows.length === 0 ? (
+          <p className="rounded-xl border border-dashed border-primary/40 px-3 py-4 text-sm text-muted-foreground">
+            Drop a line here
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
@@ -87,7 +187,7 @@ export function BudgetApp({
           <h1 className="font-display mt-1 text-4xl sm:text-5xl">Household budget</h1>
           <p className="mt-3 max-w-xl text-muted-foreground">
             MoneySmart categories for two people. Essentials are the non-discretionary lines.
-            Amounts stay in this server’s database. Move a line if it belongs somewhere else.
+            Drag a line by its handle to move it, or use the row menu. Amounts stay on this server.
           </p>
         </div>
         <div className="no-print flex flex-wrap items-center gap-2">
@@ -148,12 +248,7 @@ export function BudgetApp({
           <Stat label="Set aside" value={totals.setAside} />
           <Stat label="Left over" value={totals.leftOver} emphasize />
         </dl>
-        <ShareBar
-          income={totals.income}
-          essential={totals.essential}
-          discretionary={totals.discretionary}
-          setAside={totals.setAside}
-        />
+        <ShareBar items={items} view={view} />
       </section>
 
       {error ? (
@@ -170,23 +265,11 @@ export function BudgetApp({
         view={view}
       >
         <ColumnHead view={view} />
-        {items
-          .filter((item) => item.kind === "income" && !item.hidden)
-          .map((item) => (
-            <MoneyRow
-              key={item.id}
-              item={item}
-              view={view}
-              onPatch={(patch) => patchItem(item.id, patch)}
-              onDelete={() => {
-                startTransition(async () => {
-                  const result = await removeItem(item.id);
-                  if (!result.ok) setError(result.error);
-                  else setItems((current) => current.filter((row) => row.id !== item.id));
-                });
-              }}
-            />
-          ))}
+        {renderLines(
+          items.filter((item) => item.kind === "income" && !item.hidden),
+          "income",
+          "income",
+        )}
         <AddLine onAdd={(name) => addLine("income", "income", name)} />
       </Group>
 
@@ -200,30 +283,15 @@ export function BudgetApp({
           const rows = items.filter(
             (item) => item.kind === "essential" && item.section === section.id && !item.hidden,
           );
-          if (rows.length === 0 && section.id === "added") return null;
-          if (rows.length === 0) return null;
+          if (rows.length === 0 && !dragId) return null;
           const subtotal = rows.reduce((sum, item) => {
             if (item.amountCents == null) return sum;
             return sum + (summarise([item], view).essential);
           }, 0);
           return (
-            <Subsection key={section.id} title={section.label} total={subtotal}>
+            <Subsection key={section.id} title={section.label} total={rows.length === 0 ? undefined : subtotal}>
               <ColumnHead view={view} />
-              {rows.map((item) => (
-                <MoneyRow
-                  key={item.id}
-                  item={item}
-                  view={view}
-                  onPatch={(patch) => patchItem(item.id, patch)}
-                  onDelete={() => {
-                    startTransition(async () => {
-                      const result = await removeItem(item.id);
-                      if (!result.ok) setError(result.error);
-                      else setItems((current) => current.filter((row) => row.id !== item.id));
-                    });
-                  }}
-                />
-              ))}
+              {renderLines(rows, "essential", section.id)}
               <AddLine onAdd={(name) => addLine(section.id, "essential", name)} />
             </Subsection>
           );
@@ -237,23 +305,11 @@ export function BudgetApp({
         view={view}
       >
         <ColumnHead view={view} />
-        {items
-          .filter((item) => item.kind === "set_aside" && !item.hidden)
-          .map((item) => (
-            <MoneyRow
-              key={item.id}
-              item={item}
-              view={view}
-              onPatch={(patch) => patchItem(item.id, patch)}
-              onDelete={() => {
-                startTransition(async () => {
-                  const result = await removeItem(item.id);
-                  if (!result.ok) setError(result.error);
-                  else setItems((current) => current.filter((row) => row.id !== item.id));
-                });
-              }}
-            />
-          ))}
+        {renderLines(
+          items.filter((item) => item.kind === "set_aside" && !item.hidden),
+          "set_aside",
+          "added",
+        )}
         <AddLine onAdd={(name) => addLine("added", "set_aside", name)} />
       </Group>
 
@@ -274,24 +330,10 @@ export function BudgetApp({
               const rows = items.filter(
                 (item) => item.kind === "discretionary" && item.section === section.id && !item.hidden,
               );
-              if (rows.length === 0) return null;
+              if (rows.length === 0 && !dragId) return null;
               return (
                 <Subsection key={section.id} title={section.label}>
-                  {rows.map((item) => (
-                    <MoneyRow
-                      key={item.id}
-                      item={item}
-                      view={view}
-                      onPatch={(patch) => patchItem(item.id, patch)}
-                      onDelete={() => {
-                        startTransition(async () => {
-                          const result = await removeItem(item.id);
-                          if (!result.ok) setError(result.error);
-                          else setItems((current) => current.filter((row) => row.id !== item.id));
-                        });
-                      }}
-                    />
-                  ))}
+                  {renderLines(rows, "discretionary", section.id)}
                   <AddLine onAdd={(name) => addLine(section.id, "discretionary", name)} />
                 </Subsection>
               );
@@ -344,34 +386,6 @@ function Stat({ label, value, emphasize = false }: { label: string; value: numbe
       <dd className={`mt-1 text-lg font-medium tabular-nums ${emphasize && value < 0 ? "text-destructive" : ""}`}>
         {formatAud(value)}
       </dd>
-    </div>
-  );
-}
-
-function ShareBar({
-  income,
-  essential,
-  discretionary,
-  setAside,
-}: {
-  income: number;
-  essential: number;
-  discretionary: number;
-  setAside: number;
-}) {
-  if (income <= 0) return null;
-  const scale = Math.max(income, essential + discretionary + setAside);
-  const width = (value: number) => `${Math.max(0, (value / scale) * 100)}%`;
-  return (
-    <div className="mt-6">
-      <div className="flex h-3 overflow-hidden rounded-full bg-[var(--track)]">
-        <span className="bg-[var(--essential)]" style={{ width: width(essential) }} />
-        <span className="bg-[var(--discretionary)]" style={{ width: width(discretionary) }} />
-        <span className="bg-[var(--aside)]" style={{ width: width(setAside) }} />
-      </div>
-      <p className="mt-2 text-xs text-muted-foreground">
-        Green is essentials, amber is discretionary, blue is set aside, against income.
-      </p>
     </div>
   );
 }

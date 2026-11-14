@@ -15,9 +15,11 @@ import {
   savePassword,
   startSession,
 } from "@/lib/auth";
-import { addItem, deleteItem, updateItem } from "@/lib/budget";
+import { addItem, arrangeItems, deleteItem, updateItem } from "@/lib/budget";
 import { saveProfile as writeProfile } from "@/lib/profile";
 import type { BudgetItem, Frequency, ItemPatch, Kind, SectionId } from "@/lib/types";
+
+type Arrangement = { id: string; kind: Kind; section: SectionId; sort: number }[];
 
 async function gate() {
   if (await isUnlocked()) return null;
@@ -120,6 +122,16 @@ export async function saveHouseholdProfile(householdName: string, advisorNote: s
   const denied = await gate();
   if (denied) return { ok: false as const, error: denied };
   const error = writeProfile({ householdName, advisorNote });
+  if (error) return { ok: false as const, error };
+  revalidatePath("/");
+  revalidatePath("/export");
+  return { ok: true as const };
+}
+
+export async function saveArrangement(entries: Arrangement) {
+  const denied = await gate();
+  if (denied) return { ok: false as const, error: denied };
+  const error = arrangeItems(entries);
   if (error) return { ok: false as const, error };
   revalidatePath("/");
   revalidatePath("/export");
