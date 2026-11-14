@@ -38,6 +38,9 @@ function migrate(db: AppDatabase) {
   if (!settings.has("advisor_note")) {
     db.exec("ALTER TABLE settings ADD COLUMN advisor_note TEXT NOT NULL DEFAULT ''");
   }
+  db.prepare(
+    "UPDATE items SET section = 'housing' WHERE id = 'home-mortgage' AND section = 'home'",
+  ).run();
 }
 
 function seed(db: AppDatabase) {

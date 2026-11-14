@@ -125,11 +125,24 @@ test("a new database is seeded with blank lines", async () => {
   assert.equal(pay.frequency, "monthly");
   assert.equal(mortgage.amount_cents, null);
   assert.equal(mortgage.frequency, "monthly");
+  const mortgageSection = db.prepare("SELECT section FROM items WHERE id = ?").get("home-mortgage") as {
+    section: string;
+  };
+  assert.equal(mortgageSection.section, "housing");
   assert.equal(filled.n, 0);
   assert.equal(count.n, CATALOG.length);
   const columns = db.prepare("PRAGMA table_info(settings)").all() as { name: string }[];
   assert.equal(columns.some((column) => column.name === "household_name"), true);
   assert.equal(columns.some((column) => column.name === "advisor_note"), true);
+  db.prepare("UPDATE items SET section = 'home', amount_cents = 180000 WHERE id = 'home-mortgage'").run();
   db.close();
+  const reopened = openDatabase(path.join(dir, "budget.sqlite"));
+  const moved = reopened.prepare("SELECT section, amount_cents FROM items WHERE id = ?").get("home-mortgage") as {
+    section: string;
+    amount_cents: number;
+  };
+  assert.equal(moved.section, "housing");
+  assert.equal(moved.amount_cents, 180000);
+  reopened.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });

@@ -19,6 +19,7 @@ export type Kind = (typeof KINDS)[number];
 
 export const SECTIONS = [
   { id: "income", label: "Income" },
+  { id: "housing", label: "Mortgage & rent" },
   { id: "home", label: "Home & utilities" },
   { id: "insurance", label: "Insurance & financial" },
   { id: "groceries", label: "Groceries" },
