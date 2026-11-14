@@ -68,6 +68,10 @@
   --border: #ddd4c3;
   --input: #d5cbb8;
   --ring: #1f4d38;
+  --essential: #1f4d38;
+  --discretionary: #c47b3a;
+  --aside: #3d6f8c;
+  --track: #e7e0d2;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -85,24 +89,28 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #141210;
+  --foreground: #f3efe6;
+  --card: #1e1b17;
+  --card-foreground: #f3efe6;
+  --popover: #1e1b17;
+  --popover-foreground: #f3efe6;
+  --primary: #8fbfa4;
+  --primary-foreground: #10241a;
+  --secondary: #2a2622;
+  --secondary-foreground: #f3efe6;
+  --muted: #2a2622;
+  --muted-foreground: #b7aea0;
+  --accent: #2a2622;
+  --accent-foreground: #f3efe6;
+  --destructive: #e08a72;
+  --border: #3a342c;
+  --input: #3a342c;
+  --ring: #8fbfa4;
+  --essential: #8fbfa4;
+  --discretionary: #e0a36a;
+  --aside: #7eabc4;
+  --track: #2a2622;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -122,11 +130,15 @@
   * {
     @apply border-border outline-ring/50;
   }
-  body {
-    @apply bg-background text-foreground;
-  }
   html {
     @apply font-sans;
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    @apply bg-background text-foreground;
   }
 }
 
@@ -138,7 +150,13 @@
   .no-print {
     display: none !important;
   }
-  body {
-    background: white;
+  html,
+  body,
+  .advisor-sheet {
+    background: white !important;
+    color: #1c1915 !important;
+  }
+  .advisor-sheet {
+    box-shadow: none !important;
   }
 }

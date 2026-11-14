@@ -11,20 +11,43 @@ import {
   envPassword,
   hasStoredPassword,
   isUnlocked,
+  loginIsConfigured,
   savePassword,
   startSession,
 } from "@/lib/auth";
 import { addItem, deleteItem, updateItem } from "@/lib/budget";
+import { saveProfile as writeProfile } from "@/lib/profile";
 import type { BudgetItem, Frequency, ItemPatch, Kind, SectionId } from "@/lib/types";
 
 async function gate() {
   if (await isUnlocked()) return null;
-  return "Unlock the budget first.";
+  return "Sign in first.";
 }
 
 async function cookieSecure() {
   const proto = (await headers()).get("x-forwarded-proto");
   return proto === "https";
+}
+
+export async function createLogin(password: string, confirm: string) {
+  if (loginIsConfigured()) {
+    return { ok: false as const, error: "A login is already set." };
+  }
+  if (password !== confirm) {
+    return { ok: false as const, error: "Those passwords do not match." };
+  }
+  if (password.trim().length < 8) {
+    return { ok: false as const, error: "Use at least 8 characters." };
+  }
+  savePassword(password.trim());
+  const token = startSession();
+  const jar = await cookies();
+  jar.set(SESSION_COOKIE, token, {
+    ...cookieOptions,
+    secure: await cookieSecure(),
+  });
+  revalidatePath("/");
+  return { ok: true as const };
 }
 
 export async function unlockBudget(password: string) {
@@ -52,7 +75,7 @@ export async function setPassphrase(password: string, current: string) {
   if (envPassword()) {
     return {
       ok: false as const,
-      error: "The passphrase is set with BUDGET_PASSWORD on the server.",
+      error: "The password is set with BUDGET_PASSWORD on the server.",
     };
   }
   const denied = await gate();
@@ -79,7 +102,7 @@ export async function removePassphrase(current: string) {
   if (envPassword()) {
     return {
       ok: false as const,
-      error: "The passphrase is set with BUDGET_PASSWORD on the server.",
+      error: "The password is set with BUDGET_PASSWORD on the server.",
     };
   }
   const denied = await gate();
@@ -90,6 +113,16 @@ export async function removePassphrase(current: string) {
   const jar = await cookies();
   jar.delete(SESSION_COOKIE);
   revalidatePath("/");
+  return { ok: true as const };
+}
+
+export async function saveHouseholdProfile(householdName: string, advisorNote: string) {
+  const denied = await gate();
+  if (denied) return { ok: false as const, error: denied };
+  const error = writeProfile({ householdName, advisorNote });
+  if (error) return { ok: false as const, error };
+  revalidatePath("/");
+  revalidatePath("/export");
   return { ok: true as const };
 }
 

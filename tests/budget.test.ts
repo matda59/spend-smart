@@ -118,6 +118,9 @@ test("a new database is seeded with blank lines", async () => {
   assert.equal(mortgage.frequency, "monthly");
   assert.equal(filled.n, 0);
   assert.equal(count.n, CATALOG.length);
+  const columns = db.prepare("PRAGMA table_info(settings)").all() as { name: string }[];
+  assert.equal(columns.some((column) => column.name === "household_name"), true);
+  assert.equal(columns.some((column) => column.name === "advisor_note"), true);
   db.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });

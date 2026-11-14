@@ -1,8 +1,9 @@
 import { connection } from "next/server";
 import { BudgetApp } from "@/components/budget-app";
-import { UnlockForm } from "@/components/unlock-form";
-import { envPassword, hasStoredPassword, isUnlocked } from "@/lib/auth";
+import { LoginScreen } from "@/components/login-screen";
+import { envPassword, hasStoredPassword, isUnlocked, loginIsConfigured } from "@/lib/auth";
 import { listItems } from "@/lib/budget";
+import { getProfile } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,8 +12,12 @@ export default async function HomePage() {
   await connection();
 
   try {
+    if (!loginIsConfigured()) {
+      return <LoginScreen mode="create" />;
+    }
+
     if (!(await isUnlocked())) {
-      return <UnlockForm />;
+      return <LoginScreen mode="sign-in" />;
     }
 
     return (
@@ -20,6 +25,7 @@ export default async function HomePage() {
         initialItems={listItems()}
         envLocked={envPassword() != null}
         storedPassword={hasStoredPassword()}
+        householdName={getProfile().householdName}
       />
     );
   } catch (error) {

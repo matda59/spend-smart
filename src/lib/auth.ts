@@ -46,10 +46,14 @@ export function hasStoredPassword() {
   return Boolean(settings().password_hash);
 }
 
+export function loginIsConfigured() {
+  return Boolean(envPassword() || hasStoredPassword());
+}
+
 export async function isUnlocked() {
   const secret = envPassword();
   const row = settings();
-  if (!secret && !row.password_hash) return true;
+  if (!secret && !row.password_hash) return false;
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   return Boolean(token && row.session_token && sameText(token, row.session_token));
@@ -71,7 +75,7 @@ export function checkPassphrase(password: string) {
       attempts.lockedUntil = Date.now() + LOCK_MS;
       attempts.failures = 0;
     }
-    return "That passphrase does not match.";
+    return "That password does not match.";
   }
   attempts.failures = 0;
   attempts.lockedUntil = 0;

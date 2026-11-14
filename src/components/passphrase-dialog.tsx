@@ -44,18 +44,16 @@ export function PassphraseDialog({
     >
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="no-print">
-          {envLocked || storedPassword ? "Passphrase" : "Set a passphrase"}
+          Password
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Passphrase</DialogTitle>
+          <DialogTitle>Password</DialogTitle>
           <DialogDescription>
             {envLocked
-              ? "The passphrase is set with BUDGET_PASSWORD on the server. Change it there, then restart the container."
-              : storedPassword
-                ? "Anyone who can open this address needs the passphrase. Removing it leaves the budget open on your network."
-                : "Until you set one, anyone who can open this address can see and edit the budget."}
+              ? "The password is set with BUDGET_PASSWORD on the server. Change it there, then restart the container."
+              : "You both use this password to sign in. Removing it closes the budget until a new one is created."}
           </DialogDescription>
         </DialogHeader>
         {envLocked ? null : (
@@ -77,7 +75,7 @@ export function PassphraseDialog({
           >
             {storedPassword ? (
               <div className="space-y-2">
-                <Label htmlFor="current-passphrase">Current passphrase</Label>
+                <Label htmlFor="current-passphrase">Current password</Label>
                 <Input
                   id="current-passphrase"
                   type="password"
@@ -89,7 +87,7 @@ export function PassphraseDialog({
               </div>
             ) : null}
             <div className="space-y-2">
-              <Label htmlFor="new-passphrase">New passphrase</Label>
+              <Label htmlFor="new-passphrase">New password</Label>
               <Input
                 id="new-passphrase"
                 type="password"
@@ -128,7 +126,7 @@ export function PassphraseDialog({
                 </Button>
               ) : null}
               <Button type="submit" disabled={pending}>
-                {pending ? "Saving…" : "Save passphrase"}
+                {pending ? "Saving…" : "Save password"}
               </Button>
             </DialogFooter>
           </form>

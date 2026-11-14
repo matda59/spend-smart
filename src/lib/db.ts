@@ -25,6 +25,21 @@ CREATE TABLE IF NOT EXISTS items (
 
 export type AppDatabase = Database.Database;
 
+function columnNames(db: AppDatabase, table: "settings" | "items") {
+  const rows = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  return new Set(rows.map((row) => row.name));
+}
+
+function migrate(db: AppDatabase) {
+  const settings = columnNames(db, "settings");
+  if (!settings.has("household_name")) {
+    db.exec("ALTER TABLE settings ADD COLUMN household_name TEXT NOT NULL DEFAULT ''");
+  }
+  if (!settings.has("advisor_note")) {
+    db.exec("ALTER TABLE settings ADD COLUMN advisor_note TEXT NOT NULL DEFAULT ''");
+  }
+}
+
 function seed(db: AppDatabase) {
   const count = db.prepare("SELECT COUNT(*) AS n FROM items").get() as { n: number };
   if (count.n > 0) return;
@@ -56,6 +71,7 @@ export function openDatabase(filename: string): AppDatabase {
     ).run();
   }
   seed(db);
+  migrate(db);
 
   if (process.env.BUDGET_RESET_PASSWORD === "1") {
     db.prepare(

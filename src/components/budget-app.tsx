@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState, useTransition, type ReactNode } from "react";
+import Link from "next/link";
 import { createItem, lockBudget, removeItem, saveItem } from "@/app/actions";
 import { MoneyRow } from "@/components/money-row";
 import { PassphraseDialog } from "@/components/passphrase-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, summarise } from "@/lib/money";
@@ -21,10 +23,12 @@ export function BudgetApp({
   initialItems,
   envLocked,
   storedPassword,
+  householdName,
 }: {
   initialItems: BudgetItem[];
   envLocked: boolean;
   storedPassword: boolean;
+  householdName: string;
 }) {
   const [items, setItems] = useState(initialItems);
   const [view, setView] = useState<Frequency>("monthly");
@@ -77,8 +81,8 @@ export function BudgetApp({
     <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm font-medium tracking-wide text-[#1f4d38] uppercase">
-            For the two of you
+          <p className="text-sm font-medium tracking-wide text-primary uppercase">
+            {householdName.trim() || "For the two of you"}
           </p>
           <h1 className="font-display mt-1 text-4xl sm:text-5xl">Household budget</h1>
           <p className="mt-3 max-w-xl text-muted-foreground">
@@ -87,28 +91,24 @@ export function BudgetApp({
           </p>
         </div>
         <div className="no-print flex flex-wrap items-center gap-2">
+          <ThemeToggle />
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/export">Advisor pack</Link>
+          </Button>
           <PassphraseDialog envLocked={envLocked} storedPassword={storedPassword} />
-          {envLocked || storedPassword ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                startTransition(async () => {
-                  await lockBudget();
-                });
-              }}
-            >
-              Lock
-            </Button>
-          ) : null}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              startTransition(async () => {
+                await lockBudget();
+              });
+            }}
+          >
+            Sign out
+          </Button>
         </div>
       </header>
-
-      {!envLocked && !storedPassword ? (
-        <p className="no-print mt-4 text-sm text-muted-foreground">
-          Anyone on this network can open this page. Set a passphrase before it is reachable beyond the house.
-        </p>
-      ) : null}
 
       <section className="mt-8 rounded-3xl bg-card px-5 py-6 ring-1 ring-foreground/10 sm:px-8 sm:py-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -117,7 +117,7 @@ export function BudgetApp({
               {short ? "Short after essentials" : "Left after essentials"}
             </h2>
             <p
-              className={`font-display mt-1 text-5xl tracking-tight tabular-nums sm:text-6xl ${short ? "text-destructive" : "text-[#1f4d38]"}`}
+              className={`font-display mt-1 text-5xl tracking-tight tabular-nums sm:text-6xl ${short ? "text-destructive" : "text-primary"}`}
             >
               {formatAud(totals.leftAfterEssentials)}
             </p>
@@ -364,10 +364,10 @@ function ShareBar({
   const width = (value: number) => `${Math.max(0, (value / scale) * 100)}%`;
   return (
     <div className="mt-6">
-      <div className="flex h-3 overflow-hidden rounded-full bg-[#e7e0d2]">
-        <span className="bg-[#1f4d38]" style={{ width: width(essential) }} />
-        <span className="bg-[#c47b3a]" style={{ width: width(discretionary) }} />
-        <span className="bg-[#3d6f8c]" style={{ width: width(setAside) }} />
+      <div className="flex h-3 overflow-hidden rounded-full bg-[var(--track)]">
+        <span className="bg-[var(--essential)]" style={{ width: width(essential) }} />
+        <span className="bg-[var(--discretionary)]" style={{ width: width(discretionary) }} />
+        <span className="bg-[var(--aside)]" style={{ width: width(setAside) }} />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Green is essentials, amber is discretionary, blue is set aside, against income.

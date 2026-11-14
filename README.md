@@ -14,8 +14,9 @@ Open the budget. The figure at the top is what is left after essentials, for the
 - Savings and extra super sit under **Set aside**. They reduce what is left over, and they are not counted as spending.
 - Discretionary lines (eating out, holidays, clothing, pay TV, and similar) stay tucked away until you open them.
 - Add a line, rename one, or hide one you do not use. Added lines can be removed. Built-in lines can be hidden and restored.
-
-Anyone who can open the address can edit the budget until you set a passphrase. Set one in the app, or set `BUDGET_PASSWORD` on the container before the app is reachable beyond the house.
+- The first visit asks you to create a shared login. After that, sign in to see the figures. Change the password from the budget page, or set `BUDGET_PASSWORD` on the container instead.
+- Use the colour control for light, dark, or the device setting.
+- **Advisor pack** writes a summary an advisor can read: fortnightly, monthly, and annual figures, a note, a spreadsheet download, and a page you can print or save as PDF. The spreadsheet is `household-budget.csv`.
 
 This is a plan, the same kind of snapshot as the MoneySmart sheet. It does not import bank transactions or compare a month with what you actually spent.
 
