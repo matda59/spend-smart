@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { createItem, lockBudget, removeItem, saveArrangement, saveItem } from "@/app/actions";
+import { ChevronDown } from "lucide-react";
+import { createItem, lockBudget, removeItem, restoreBudget, saveArrangement, saveItem, saveLeftoverGoal } from "@/app/actions";
 import { MoneyRow } from "@/components/money-row";
 import { PassphraseDialog } from "@/components/passphrase-dialog";
 import { ShareBar } from "@/components/share-bar";
@@ -11,7 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { placeLine } from "@/lib/arrange";
 import { groupColor } from "@/lib/bars";
-import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, shareOf, summarise } from "@/lib/money";
+import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, formatPlain, isFrequency, parseDollars, plainLeft, shareOf, summarise, viewCents } from "@/lib/money";
+import type { LeftoverGoal } from "@/lib/profile";
 import {
   SECTIONS,
   type BudgetItem,
@@ -27,17 +29,24 @@ export function BudgetApp({
   envLocked,
   storedPassword,
   householdName,
+  goal,
 }: {
   initialItems: BudgetItem[];
   envLocked: boolean;
   storedPassword: boolean;
   householdName: string;
+  goal: LeftoverGoal;
 }) {
+  const hasAmounts = initialItems.some((item) => !item.hidden && item.amountCents != null);
   const [items, setItems] = useState(initialItems);
   const [view, setView] = useState<Frequency>("monthly");
   const [error, setError] = useState<string | null>(null);
   const [showDiscretionary, setShowDiscretionary] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
+  const [showEmpty, setShowEmpty] = useState(!hasAmounts);
+  const [history, setHistory] = useState<BudgetItem[][]>([]);
+  const [closed, setClosed] = useState<string[]>([]);
+  const [keptVisible, setKeptVisible] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -55,8 +64,75 @@ export function BudgetApp({
   const discretionaryShare = shareOf(totals.discretionary, totals.income);
   const setAsideShare = shareOf(totals.setAside, totals.income);
   const leftOverShare = shareOf(totals.leftOver, totals.income);
+  const goalInView = goal.cents == null ? null : viewCents(goal.cents, goal.frequency, view);
+  const underGoal = goalInView != null && totals.leftOver < goalInView;
+
+  useEffect(() => {
+    const storedView = localStorage.getItem("spend-smart-view");
+    if (storedView && isFrequency(storedView)) setView(storedView);
+    const storedEmpty = localStorage.getItem("spend-smart-show-empty");
+    if (storedEmpty === "1" || storedEmpty === "0") setShowEmpty(storedEmpty === "1");
+    const storedClosed = localStorage.getItem("spend-smart-closed");
+    if (!storedClosed) return;
+    try {
+      const parsed = JSON.parse(storedClosed) as unknown;
+      if (Array.isArray(parsed)) setClosed(parsed.filter((value) => typeof value === "string"));
+    } catch {
+      localStorage.removeItem("spend-smart-closed");
+    }
+  }, []);
+
+  function remember() {
+    setHistory((stack) => [...stack, items].slice(-8));
+  }
+
+  function undo() {
+    const previous = history.at(-1);
+    if (!previous) return;
+    setHistory((stack) => stack.slice(0, -1));
+    setError(null);
+    setItems(previous);
+    startTransition(async () => {
+      const result = await restoreBudget(previous);
+      if (!result.ok) setError(result.error);
+    });
+  }
+
+  function chooseView(next: Frequency) {
+    setView(next);
+    localStorage.setItem("spend-smart-view", next);
+  }
+
+  function toggleEmpty() {
+    setShowEmpty((current) => {
+      const next = !current;
+      localStorage.setItem("spend-smart-show-empty", next ? "1" : "0");
+      return next;
+    });
+  }
+
+  function sectionOpen(kind: Kind, section: SectionId) {
+    if (dragId) return true;
+    return !closed.includes(`${kind}:${section}`);
+  }
+
+  function toggleSection(kind: Kind, section: SectionId) {
+    const key = `${kind}:${section}`;
+    setClosed((current) => {
+      const next = current.includes(key) ? current.filter((item) => item !== key) : [...current, key];
+      localStorage.setItem("spend-smart-closed", JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function shownRows(rows: BudgetItem[], kind: Kind) {
+    if (kind === "income" || showEmpty || dragId) return rows;
+    if (kind === "discretionary" && showDiscretionary && !discretionaryHasAmount) return rows;
+    return rows.filter((row) => row.amountCents != null || keptVisible.includes(row.id));
+  }
 
   function patchItem(id: string, patch: Parameters<typeof saveItem>[1]) {
+    remember();
     setError(null);
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
@@ -70,6 +146,7 @@ export function BudgetApp({
   function moveLine(id: string, dest: { kind: Kind; section: SectionId; index: number }) {
     const next = placeLine(items, { id, ...dest });
     if (!next || next === items) return;
+    remember();
     setError(null);
     setItems(next);
     startTransition(async () => {
@@ -83,6 +160,7 @@ export function BudgetApp({
   function addLine(section: SectionId, kind: Kind, name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
+    remember();
     setError(null);
     startTransition(async () => {
       const result = await createItem({
@@ -95,11 +173,13 @@ export function BudgetApp({
         setError(result.error);
         return;
       }
+      setKeptVisible((current) => [...current, result.item.id]);
       setItems((current) => [...current, result.item]);
     });
   }
 
   function deleteRow(id: string) {
+    remember();
     startTransition(async () => {
       const result = await removeItem(id);
       if (!result.ok) setError(result.error);
@@ -231,6 +311,12 @@ export function BudgetApp({
               {view === "fortnightly" ? null : ` · ${formatAud(fortnightly)} a fortnight`}
               {view === "annually" ? null : ` · ${formatAud(yearly)} a year`}
             </p>
+            <p className="mt-3 max-w-xl text-sm">{plainLeft(totals, view)}</p>
+            {underGoal && goalInView != null ? (
+              <p className="mt-1 max-w-xl text-sm text-destructive">
+                Left over is under the {formatAud(goalInView)} you want to keep this {PERIOD_NOUN[view]}.
+              </p>
+            ) : null}
           </div>
           <div className="no-print flex flex-wrap gap-1 rounded-xl bg-muted p-1" role="group" aria-label="View totals as">
             {VIEWS.map((option) => (
@@ -238,7 +324,7 @@ export function BudgetApp({
                 key={option}
                 type="button"
                 aria-pressed={view === option}
-                onClick={() => setView(option)}
+                onClick={() => chooseView(option)}
                 className={`rounded-lg px-2.5 py-1.5 text-sm ${view === option ? "bg-card font-medium text-foreground shadow-sm" : "text-muted-foreground"}`}
               >
                 {FREQUENCY_LABEL[option]}
@@ -254,7 +340,19 @@ export function BudgetApp({
           <Stat label="Left over" value={totals.leftOver} share={leftOverShare} emphasize />
         </dl>
         <ShareBar items={items} view={view} />
+        <KeepAtLeast cents={goal.cents} frequency={goal.frequency} />
       </section>
+
+      <div className="no-print mt-4 flex flex-wrap gap-2">
+        <Button variant="outline" size="sm" onClick={toggleEmpty}>
+          {showEmpty ? "Hide empty lines" : "Show empty lines"}
+        </Button>
+        {history.length > 0 ? (
+          <Button variant="outline" size="sm" onClick={undo}>
+            Undo
+          </Button>
+        ) : null}
+      </div>
 
       {error ? (
         <p role="alert" className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -271,7 +369,10 @@ export function BudgetApp({
       >
         <ColumnHead view={view} />
         {renderLines(
-          items.filter((item) => item.kind === "income" && !item.hidden),
+          shownRows(
+            items.filter((item) => item.kind === "income" && !item.hidden),
+            "income",
+          ),
           "income",
           "income",
         )}
@@ -286,8 +387,9 @@ export function BudgetApp({
         view={view}
       >
         {SECTIONS.filter((section) => section.id !== "income").map((section) => {
-          const rows = items.filter(
-            (item) => item.kind === "essential" && item.section === section.id && !item.hidden,
+          const rows = shownRows(
+            items.filter((item) => item.kind === "essential" && item.section === section.id && !item.hidden),
+            "essential",
           );
           if (rows.length === 0 && !dragId) return null;
           const subtotal = rows.reduce((sum, item) => {
@@ -295,7 +397,13 @@ export function BudgetApp({
             return sum + (summarise([item], view).essential);
           }, 0);
           return (
-            <Subsection key={section.id} title={section.label} total={rows.length === 0 ? undefined : subtotal}>
+            <Subsection
+              key={section.id}
+              title={section.label}
+              total={rows.length === 0 ? undefined : subtotal}
+              open={sectionOpen("essential", section.id)}
+              onToggle={() => toggleSection("essential", section.id)}
+            >
               <ColumnHead view={view} />
               {renderLines(rows, "essential", section.id)}
               <AddLine onAdd={(name) => addLine(section.id, "essential", name)} />
@@ -313,7 +421,10 @@ export function BudgetApp({
       >
         <ColumnHead view={view} />
         {renderLines(
-          items.filter((item) => item.kind === "set_aside" && !item.hidden),
+          shownRows(
+            items.filter((item) => item.kind === "set_aside" && !item.hidden),
+            "set_aside",
+          ),
           "set_aside",
           "added",
         )}
@@ -337,12 +448,18 @@ export function BudgetApp({
         {discretionaryOpen ? (
           <div className="mt-4">
             {SECTIONS.filter((section) => section.id !== "income").map((section) => {
-              const rows = items.filter(
-                (item) => item.kind === "discretionary" && item.section === section.id && !item.hidden,
+              const rows = shownRows(
+                items.filter((item) => item.kind === "discretionary" && item.section === section.id && !item.hidden),
+                "discretionary",
               );
               if (rows.length === 0 && !dragId) return null;
               return (
-                <Subsection key={section.id} title={section.label}>
+                <Subsection
+                  key={section.id}
+                  title={section.label}
+                  open={sectionOpen("discretionary", section.id)}
+                  onToggle={() => toggleSection("discretionary", section.id)}
+                >
                   {renderLines(rows, "discretionary", section.id)}
                   <AddLine onAdd={(name) => addLine(section.id, "discretionary", name)} />
                 </Subsection>
@@ -446,20 +563,106 @@ function Group({
 function Subsection({
   title,
   total,
+  open = true,
+  onToggle,
   children,
 }: {
   title: string;
   total?: number;
+  open?: boolean;
+  onToggle?: () => void;
   children: ReactNode;
 }) {
   return (
     <div className="mt-6">
-      <div className="flex items-baseline justify-between gap-3">
+      <button
+        type="button"
+        className="flex w-full items-baseline justify-between gap-3 text-left"
+        aria-expanded={open}
+        onClick={onToggle}
+      >
         <h3 className="text-sm font-semibold tracking-wide uppercase">{title}</h3>
-        {total != null ? <p className="text-sm tabular-nums text-muted-foreground">{formatAud(total)}</p> : null}
-      </div>
-      {children}
+        <span className="flex items-center gap-2">
+          {total != null ? <span className="text-sm tabular-nums text-muted-foreground">{formatAud(total)}</span> : null}
+          <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+        </span>
+      </button>
+      {open ? children : null}
     </div>
+  );
+}
+
+function KeepAtLeast({ cents, frequency }: { cents: number | null; frequency: Frequency }) {
+  const [amount, setAmount] = useState(cents == null ? "" : formatPlain(cents));
+  const [period, setPeriod] = useState(frequency);
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function save(nextAmount: string, nextPeriod: Frequency) {
+    const parsed = parseDollars(nextAmount);
+    if (!parsed.ok) {
+      setMessage(parsed.error);
+      return;
+    }
+    setMessage(null);
+    startTransition(async () => {
+      const result = await saveLeftoverGoal(parsed.cents, nextPeriod);
+      if (!result.ok) setMessage(result.error);
+    });
+  }
+
+  return (
+    <form
+      className="no-print mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+      onSubmit={(event) => {
+        event.preventDefault();
+        save(amount, period);
+      }}
+    >
+      <label htmlFor="keep-at-least" className="text-sm text-muted-foreground">
+        Keep at least
+      </label>
+      <div className="relative">
+        <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-muted-foreground">
+          $
+        </span>
+        <Input
+          id="keep-at-least"
+          inputMode="decimal"
+          value={amount}
+          placeholder="Amount"
+          onChange={(event) => {
+            setAmount(event.target.value);
+            setMessage(null);
+          }}
+          onBlur={() => save(amount, period)}
+          className="w-32 pl-6"
+        />
+      </div>
+      <span className="text-sm text-muted-foreground">left each</span>
+      <select
+        aria-label="How often to keep that amount"
+        value={period}
+        onChange={(event) => {
+          const next = event.target.value as Frequency;
+          setPeriod(next);
+          save(amount, next);
+        }}
+        className="h-8 rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+      >
+        {VIEWS.map((option) => (
+          <option key={option} value={option}>
+            {PERIOD_NOUN[option]}
+          </option>
+        ))}
+      </select>
+      {pending ? <span className="text-xs text-muted-foreground">Saving…</span> : null}
+      {message ? (
+        <span role="alert" className="text-xs text-destructive">
+          {message}
+        </span>
+      ) : null}
+    </form>
   );
 }
 

@@ -11,6 +11,7 @@ function item(partial: Partial<BudgetItem> & Pick<BudgetItem, "id" | "name" | "k
     sort: 0,
     hidden: false,
     custom: false,
+    note: "",
     ...partial,
   };
 }

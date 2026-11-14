@@ -75,6 +75,17 @@ export function summarise(items: BudgetItem[], view: Frequency): Totals {
   };
 }
 
+export function plainLeft(totals: Totals, view: Frequency): string {
+  const period = PERIOD_NOUN[view];
+  if (totals.income <= 0 && totals.essential <= 0) {
+    return "Enter your pay and the bills to see what is left.";
+  }
+  if (totals.leftAfterEssentials < 0) {
+    return `Essentials are ${formatAud(Math.abs(totals.leftAfterEssentials))} over income this ${period}.`;
+  }
+  return `After essentials, ${formatAud(totals.leftAfterEssentials)} is left this ${period}.`;
+}
+
 /** Share of a total, for example 37.5% of income. Null when there is no total to share. */
 export function shareOf(part: number, whole: number): string | null {
   if (!(whole > 0) || !Number.isFinite(part)) return null;

@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { CATALOG } from "../src/lib/catalog";
-import { formatAud, parseDollars, shareOf, summarise, viewCents } from "../src/lib/money";
+import { formatAud, parseDollars, plainLeft, shareOf, summarise, viewCents } from "../src/lib/money";
 import type { BudgetItem } from "../src/lib/types";
 
 function asItems(): BudgetItem[] {
@@ -13,6 +13,7 @@ function asItems(): BudgetItem[] {
     sort,
     hidden: false,
     custom: false,
+    note: "",
   }));
 }
 
@@ -28,6 +29,7 @@ function sample(): BudgetItem[] {
       sort: 0,
       hidden: false,
       custom: false,
+      note: "",
     },
     {
       id: "rent",
@@ -39,6 +41,7 @@ function sample(): BudgetItem[] {
       sort: 1,
       hidden: false,
       custom: false,
+      note: "",
     },
   ];
 }
@@ -91,6 +94,12 @@ test("dollar entry accepts blanks, commas, and cents", () => {
   assert.equal(parseDollars("12.345").ok, false);
 });
 
+test("the summary sentence says what is left", () => {
+  const totals = summarise(sample(), "monthly");
+  assert.match(plainLeft(totals, "monthly"), /After essentials, \$1,000 is left this month/);
+  assert.match(plainLeft(summarise([], "monthly"), "fortnightly"), /Enter your pay/);
+});
+
 test("shares of income stay readable", () => {
   assert.equal(shareOf(150_000, 400_000), "37.5%");
   assert.equal(shareOf(400_000, 400_000), "100%");
@@ -134,6 +143,9 @@ test("a new database is seeded with blank lines", async () => {
   const columns = db.prepare("PRAGMA table_info(settings)").all() as { name: string }[];
   assert.equal(columns.some((column) => column.name === "household_name"), true);
   assert.equal(columns.some((column) => column.name === "advisor_note"), true);
+  assert.equal(columns.some((column) => column.name === "goal_cents"), true);
+  const itemColumns = db.prepare("PRAGMA table_info(items)").all() as { name: string }[];
+  assert.equal(itemColumns.some((column) => column.name === "note"), true);
   db.prepare("UPDATE items SET section = 'home', amount_cents = 180000 WHERE id = 'home-mortgage'").run();
   db.close();
   const reopened = openDatabase(path.join(dir, "budget.sqlite"));
@@ -144,5 +156,29 @@ test("a new database is seeded with blank lines", async () => {
   assert.equal(moved.section, "housing");
   assert.equal(moved.amount_cents, 180000);
   reopened.close();
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test("a note, a leftover goal, and undo survive in the database", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "household-budget-"));
+  const { openDatabase } = await import("../src/lib/db");
+  const { updateItem, listItems, addItem, restoreItems } = await import("../src/lib/budget");
+  const { saveGoal, getGoal } = await import("../src/lib/profile");
+  openDatabase(path.join(dir, "budget.sqlite"));
+  process.env.DATABASE_PATH = path.join(dir, "budget.sqlite");
+  const noted = updateItem("home-mortgage", { note: "Fixed until 2028", amountCents: 180000 });
+  assert.equal(noted, null);
+  assert.equal(listItems().find((item) => item.id === "home-mortgage")?.note, "Fixed until 2028");
+  assert.equal(saveGoal(50_000, "fortnightly"), null);
+  assert.deepEqual(getGoal(), { cents: 50_000, frequency: "fortnightly" });
+  const before = listItems();
+  const added = addItem({ section: "added", name: "Streaming", kind: "discretionary", frequency: "monthly" });
+  assert.ok(!("error" in added));
+  assert.equal(restoreItems(before), null);
+  const after = listItems();
+  assert.equal(after.some((item) => item.name === "Streaming"), false);
+  assert.equal(after.find((item) => item.id === "home-mortgage")?.amountCents, 180000);
+  assert.equal(after.find((item) => item.id === "home-mortgage")?.note, "Fixed until 2028");
+  delete process.env.DATABASE_PATH;
   fs.rmSync(dir, { recursive: true, force: true });
 });

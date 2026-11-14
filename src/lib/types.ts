@@ -42,6 +42,7 @@ export type BudgetItem = {
   sort: number;
   hidden: boolean;
   custom: boolean;
+  note: string;
 };
 
 export type ItemPatch = {
@@ -50,4 +51,5 @@ export type ItemPatch = {
   frequency?: Frequency;
   kind?: Kind;
   hidden?: boolean;
+  note?: string;
 };

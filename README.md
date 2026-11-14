@@ -17,6 +17,9 @@ Open the budget. The figure at the top is what is left after essentials, for the
 - Add a line, rename one, or hide one you do not use. Added lines can be removed. Built-in lines can be hidden and restored.
 - The first visit asks you to create a shared login. After that, sign in to see the figures. Change the password from the budget page, or set `BUDGET_PASSWORD` on the container instead.
 - Use the colour control for light or dark.
+- Empty lines stay hidden once you have entered an amount. **Show empty lines** brings the blanks back. Income lines stay visible.
+- The period you pick is remembered on this browser. **Undo** steps back the last change.
+- A line can carry a short note from its menu. **Keep at least** warns you when what is left drops under an amount you choose.
 - **Export** opens the advisor pack: fortnightly, monthly, and annual figures, a note, an **Export spreadsheet** download, and **Export as PDF**. The spreadsheet is `household-budget.csv`.
 
 This is a plan, the same kind of snapshot as the MoneySmart sheet. It does not import bank transactions or compare a month with what you actually spent.

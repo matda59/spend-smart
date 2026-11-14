@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GripVertical, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,6 +49,7 @@ export function MoneyRow({
     frequency?: Frequency;
     kind?: Kind;
     hidden?: boolean;
+    note?: string;
   }) => void;
   onDelete: () => void;
   onPlace: (dest: { kind: Kind; section: SectionId }) => void;
@@ -58,6 +59,9 @@ export function MoneyRow({
   const [name, setName] = useState(item.name);
   const [amount, setAmount] = useState(item.amountCents == null ? "" : formatPlain(item.amountCents));
   const [amountError, setAmountError] = useState<string | null>(null);
+  const [note, setNote] = useState(item.note ?? "");
+  const [editingNote, setEditingNote] = useState(false);
+  const noteRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setName(item.name);
@@ -67,6 +71,14 @@ export function MoneyRow({
     setAmount(item.amountCents == null ? "" : formatPlain(item.amountCents));
     setAmountError(null);
   }, [item.amountCents]);
+
+  useEffect(() => {
+    setNote(item.note ?? "");
+  }, [item.note]);
+
+  useEffect(() => {
+    if (editingNote) noteRef.current?.focus();
+  }, [editingNote]);
 
   const converted =
     item.amountCents == null ? null : viewCents(item.amountCents, item.frequency, view);
@@ -105,6 +117,23 @@ export function MoneyRow({
         />
         {sectionLabel && item.kind !== "income" ? (
           <p className="px-2 text-xs text-muted-foreground sm:hidden">{sectionLabel}</p>
+        ) : null}
+        {editingNote || note.trim() ? (
+          <Input
+            ref={noteRef}
+            aria-label={`Note for ${item.name}`}
+            value={note}
+            placeholder="A short note, such as when it renews"
+            maxLength={160}
+            onChange={(event) => setNote(event.target.value)}
+            onBlur={() => {
+              const trimmed = note.trim();
+              setEditingNote(false);
+              setNote(trimmed);
+              if (trimmed !== (item.note ?? "")) onPatch({ note: trimmed });
+            }}
+            className="mt-1"
+          />
         ) : null}
         </div>
       </div>
@@ -203,6 +232,9 @@ export function MoneyRow({
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setEditingNote(true)}>
+            {item.note?.trim() ? "Edit note" : "Add a note"}
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onPatch({ hidden: true })}>Hide</DropdownMenuItem>
           {item.custom ? (
             <DropdownMenuItem variant="destructive" onSelect={onDelete}>

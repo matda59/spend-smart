@@ -15,8 +15,8 @@ import {
   savePassword,
   startSession,
 } from "@/lib/auth";
-import { addItem, arrangeItems, deleteItem, updateItem } from "@/lib/budget";
-import { saveProfile as writeProfile } from "@/lib/profile";
+import { addItem, arrangeItems, deleteItem, restoreItems, updateItem } from "@/lib/budget";
+import { saveGoal, saveProfile as writeProfile } from "@/lib/profile";
 import type { BudgetItem, Frequency, ItemPatch, Kind, SectionId } from "@/lib/types";
 
 type Arrangement = { id: string; kind: Kind; section: SectionId; sort: number }[];
@@ -122,6 +122,25 @@ export async function saveHouseholdProfile(householdName: string, advisorNote: s
   const denied = await gate();
   if (denied) return { ok: false as const, error: denied };
   const error = writeProfile({ householdName, advisorNote });
+  if (error) return { ok: false as const, error };
+  revalidatePath("/");
+  revalidatePath("/export");
+  return { ok: true as const };
+}
+
+export async function saveLeftoverGoal(cents: number | null, frequency: Frequency) {
+  const denied = await gate();
+  if (denied) return { ok: false as const, error: denied };
+  const error = saveGoal(cents, frequency);
+  if (error) return { ok: false as const, error };
+  revalidatePath("/");
+  return { ok: true as const };
+}
+
+export async function restoreBudget(items: BudgetItem[]) {
+  const denied = await gate();
+  if (denied) return { ok: false as const, error: denied };
+  const error = restoreItems(items);
   if (error) return { ok: false as const, error };
   revalidatePath("/");
   revalidatePath("/export");

@@ -3,7 +3,7 @@ import { BudgetApp } from "@/components/budget-app";
 import { LoginScreen } from "@/components/login-screen";
 import { envPassword, hasStoredPassword, isUnlocked, loginIsConfigured } from "@/lib/auth";
 import { listItems } from "@/lib/budget";
-import { getProfile } from "@/lib/profile";
+import { getGoal, getProfile } from "@/lib/profile";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -26,6 +26,7 @@ export default async function HomePage() {
         envLocked={envPassword() != null}
         storedPassword={hasStoredPassword()}
         householdName={getProfile().householdName}
+        goal={getGoal()}
       />
     );
   } catch (error) {

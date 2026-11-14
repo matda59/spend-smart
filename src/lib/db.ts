@@ -38,6 +38,16 @@ function migrate(db: AppDatabase) {
   if (!settings.has("advisor_note")) {
     db.exec("ALTER TABLE settings ADD COLUMN advisor_note TEXT NOT NULL DEFAULT ''");
   }
+  if (!settings.has("goal_cents")) {
+    db.exec("ALTER TABLE settings ADD COLUMN goal_cents INTEGER");
+  }
+  if (!settings.has("goal_frequency")) {
+    db.exec("ALTER TABLE settings ADD COLUMN goal_frequency TEXT NOT NULL DEFAULT 'monthly'");
+  }
+  const items = columnNames(db, "items");
+  if (!items.has("note")) {
+    db.exec("ALTER TABLE items ADD COLUMN note TEXT NOT NULL DEFAULT ''");
+  }
   db.prepare(
     "UPDATE items SET section = 'housing' WHERE id = 'home-mortgage' AND section = 'home'",
   ).run();

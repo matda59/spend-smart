@@ -106,6 +106,9 @@ export default async function ExportPage() {
                       <th className="py-2 pr-3 text-left font-medium">
                         {line.name}
                         <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{line.section}</span>
+                        {line.note ? (
+                          <span className="mt-0.5 block text-xs font-normal text-muted-foreground">{line.note}</span>
+                        ) : null}
                       </th>
                       <td className="hidden py-2 pr-3 sm:table-cell">
                         {line.entered}

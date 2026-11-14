@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { CATALOG } from "./catalog";
 import { getDb } from "./db";
 import {
   FREQUENCIES,
@@ -13,6 +14,7 @@ import {
 
 const MAX_CUSTOM = 40;
 const MAX_NAME = 80;
+const MAX_NOTE = 160;
 
 type ItemRow = {
   id: string;
@@ -24,6 +26,7 @@ type ItemRow = {
   sort: number;
   hidden: number;
   custom: number;
+  note?: string;
 };
 
 function mapItem(row: ItemRow): BudgetItem {
@@ -37,6 +40,7 @@ function mapItem(row: ItemRow): BudgetItem {
     sort: row.sort,
     hidden: row.hidden === 1,
     custom: row.custom === 1,
+    note: row.note ?? "",
   };
 }
 
@@ -61,6 +65,7 @@ export function updateItem(id: string, patch: ItemPatch): string | null {
     frequency: patch.frequency ?? existing.frequency,
     kind: patch.kind ?? existing.kind,
     hidden: patch.hidden === undefined ? existing.hidden : patch.hidden ? 1 : 0,
+    note: patch.note === undefined ? (existing.note ?? "") : patch.note,
   };
 
   const name = next.name.trim();
@@ -84,14 +89,16 @@ export function updateItem(id: string, patch: ItemPatch): string | null {
       return "Enter a dollar amount, such as 49.95.";
     }
   }
+  const note = next.note.trim();
+  if (note.length > MAX_NOTE) return `Keep the note under ${MAX_NOTE} characters.`;
 
   getDb()
     .prepare(
       `UPDATE items
-       SET name = ?, amount_cents = ?, frequency = ?, kind = ?, hidden = ?
+       SET name = ?, amount_cents = ?, frequency = ?, kind = ?, hidden = ?, note = ?
        WHERE id = ?`,
     )
-    .run(name, next.amount_cents, next.frequency, next.kind, next.hidden, id);
+    .run(name, next.amount_cents, next.frequency, next.kind, next.hidden, note, id);
 
   return null;
 }
@@ -132,6 +139,7 @@ export function addItem(input: {
     sort: sortRow.sort + 1,
     hidden: false,
     custom: true,
+    note: "",
   };
   getDb()
     .prepare(
@@ -140,6 +148,67 @@ export function addItem(input: {
     )
     .run(item.id, item.section, item.name, item.frequency, item.kind, item.sort);
   return { item };
+}
+
+export function restoreItems(next: BudgetItem[]): string | null {
+  const db = getDb();
+  const existing = db.prepare("SELECT id, custom FROM items").all() as { id: string; custom: number }[];
+  const existingIds = new Map(existing.map((row) => [row.id, row.custom === 1]));
+  const catalogIds = new Set(CATALOG.map((item) => item.id));
+  if (new Set(next.map((item) => item.id)).size !== next.length) {
+    return "The budget changed. Reload and try again.";
+  }
+  for (const row of existing) {
+    if (row.custom !== 1 && !next.some((item) => item.id === row.id)) {
+      return "The budget changed. Reload and try again.";
+    }
+  }
+  for (const item of next) {
+    const name = item.name.trim();
+    if (name.length < 1 || name.length > MAX_NAME) return `Use a name between 1 and ${MAX_NAME} characters.`;
+    if (!(FREQUENCIES as readonly string[]).includes(item.frequency)) return "Choose a frequency from the list.";
+    if (!(KINDS as readonly string[]).includes(item.kind)) return "Choose where this line belongs.";
+    if (!sectionIds().has(item.section)) return "Choose a section.";
+    if (item.kind === "income" && item.section !== "income") return "Income lines sit in the income group.";
+    if (item.kind !== "income" && item.section === "income") return "Choose a spending group for this line.";
+    if (item.note.trim().length > MAX_NOTE) return `Keep the note under ${MAX_NOTE} characters.`;
+    if (!Number.isInteger(item.sort)) return "The budget changed. Reload and try again.";
+    if (item.amountCents != null) {
+      if (!Number.isInteger(item.amountCents) || item.amountCents < 0 || item.amountCents > 100_000_000_00) {
+        return "Enter a dollar amount, such as 49.95.";
+      }
+    }
+    if (!existingIds.has(item.id) && (!item.custom || catalogIds.has(item.id))) {
+      return "The budget changed. Reload and try again.";
+    }
+  }
+
+  const write = db.transaction(() => {
+    const remove = db.prepare("DELETE FROM items WHERE id = ? AND custom = 1");
+    for (const row of existing) {
+      if (row.custom === 1 && !next.some((item) => item.id === row.id)) remove.run(row.id);
+    }
+    const update = db.prepare(
+      `UPDATE items
+       SET section = ?, name = ?, amount_cents = ?, frequency = ?, kind = ?, sort = ?, hidden = ?, note = ?
+       WHERE id = ?`,
+    );
+    const insert = db.prepare(
+      `INSERT INTO items (id, section, name, amount_cents, frequency, kind, sort, hidden, custom, note)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    );
+    for (const item of next) {
+      const hidden = item.hidden ? 1 : 0;
+      const note = item.note.trim();
+      if (existingIds.has(item.id)) {
+        update.run(item.section, item.name.trim(), item.amountCents, item.frequency, item.kind, item.sort, hidden, note, item.id);
+      } else {
+        insert.run(item.id, item.section, item.name.trim(), item.amountCents, item.frequency, item.kind, item.sort, hidden, note);
+      }
+    }
+  });
+  write();
+  return null;
 }
 
 export function arrangeItems(
