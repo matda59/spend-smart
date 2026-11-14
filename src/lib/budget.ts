@@ -27,6 +27,7 @@ type ItemRow = {
   hidden: number;
   custom: number;
   note?: string;
+  actual_cents?: number | null;
 };
 
 function mapItem(row: ItemRow): BudgetItem {
@@ -41,6 +42,7 @@ function mapItem(row: ItemRow): BudgetItem {
     hidden: row.hidden === 1,
     custom: row.custom === 1,
     note: row.note ?? "",
+    actualCents: row.actual_cents ?? null,
   };
 }
 
@@ -49,6 +51,11 @@ export function listItems(): BudgetItem[] {
     .prepare("SELECT * FROM items ORDER BY sort ASC, name ASC")
     .all() as ItemRow[];
   return rows.map(mapItem);
+}
+
+function validAmount(cents: number | null) {
+  if (cents == null) return true;
+  return Number.isInteger(cents) && cents >= 0 && cents <= 100_000_000_00;
 }
 
 function sectionIds() {
@@ -66,6 +73,7 @@ export function updateItem(id: string, patch: ItemPatch): string | null {
     kind: patch.kind ?? existing.kind,
     hidden: patch.hidden === undefined ? existing.hidden : patch.hidden ? 1 : 0,
     note: patch.note === undefined ? (existing.note ?? "") : patch.note,
+    actual_cents: patch.actualCents === undefined ? (existing.actual_cents ?? null) : patch.actualCents,
   };
 
   const name = next.name.trim();
@@ -84,21 +92,18 @@ export function updateItem(id: string, patch: ItemPatch): string | null {
   if (existing.section === "income" && next.kind !== "income") {
     return "Move this line from the row menu or by dragging it.";
   }
-  if (next.amount_cents != null) {
-    if (!Number.isInteger(next.amount_cents) || next.amount_cents < 0 || next.amount_cents > 100_000_000_00) {
-      return "Enter a dollar amount, such as 49.95.";
-    }
-  }
+  if (!validAmount(next.amount_cents)) return "Enter a dollar amount, such as 49.95.";
   const note = next.note.trim();
   if (note.length > MAX_NOTE) return `Keep the note under ${MAX_NOTE} characters.`;
+  if (!validAmount(next.actual_cents)) return "Enter a dollar amount, such as 49.95.";
 
   getDb()
     .prepare(
       `UPDATE items
-       SET name = ?, amount_cents = ?, frequency = ?, kind = ?, hidden = ?, note = ?
+       SET name = ?, amount_cents = ?, frequency = ?, kind = ?, hidden = ?, note = ?, actual_cents = ?
        WHERE id = ?`,
     )
-    .run(name, next.amount_cents, next.frequency, next.kind, next.hidden, note, id);
+    .run(name, next.amount_cents, next.frequency, next.kind, next.hidden, note, next.actual_cents, id);
 
   return null;
 }
@@ -140,6 +145,7 @@ export function addItem(input: {
     hidden: false,
     custom: true,
     note: "",
+    actualCents: null,
   };
   getDb()
     .prepare(
@@ -173,10 +179,8 @@ export function restoreItems(next: BudgetItem[]): string | null {
     if (item.kind !== "income" && item.section === "income") return "Choose a spending group for this line.";
     if (item.note.trim().length > MAX_NOTE) return `Keep the note under ${MAX_NOTE} characters.`;
     if (!Number.isInteger(item.sort)) return "The budget changed. Reload and try again.";
-    if (item.amountCents != null) {
-      if (!Number.isInteger(item.amountCents) || item.amountCents < 0 || item.amountCents > 100_000_000_00) {
-        return "Enter a dollar amount, such as 49.95.";
-      }
+    if (!validAmount(item.amountCents) || !validAmount(item.actualCents ?? null)) {
+      return "Enter a dollar amount, such as 49.95.";
     }
     if (!existingIds.has(item.id) && (!item.custom || catalogIds.has(item.id))) {
       return "The budget changed. Reload and try again.";
@@ -190,22 +194,38 @@ export function restoreItems(next: BudgetItem[]): string | null {
     }
     const update = db.prepare(
       `UPDATE items
-       SET section = ?, name = ?, amount_cents = ?, frequency = ?, kind = ?, sort = ?, hidden = ?, note = ?
+       SET section = ?, name = ?, amount_cents = ?, frequency = ?, kind = ?, sort = ?, hidden = ?, note = ?, actual_cents = ?
        WHERE id = ?`,
     );
     const insert = db.prepare(
-      `INSERT INTO items (id, section, name, amount_cents, frequency, kind, sort, hidden, custom, note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+      `INSERT INTO items (id, section, name, amount_cents, frequency, kind, sort, hidden, custom, note, actual_cents)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     );
     for (const item of next) {
       const hidden = item.hidden ? 1 : 0;
       const note = item.note.trim();
+      const actual = item.actualCents ?? null;
       if (existingIds.has(item.id)) {
-        update.run(item.section, item.name.trim(), item.amountCents, item.frequency, item.kind, item.sort, hidden, note, item.id);
+        update.run(item.section, item.name.trim(), item.amountCents, item.frequency, item.kind, item.sort, hidden, note, actual, item.id);
       } else {
-        insert.run(item.id, item.section, item.name.trim(), item.amountCents, item.frequency, item.kind, item.sort, hidden, note);
+        insert.run(item.id, item.section, item.name.trim(), item.amountCents, item.frequency, item.kind, item.sort, hidden, note, actual);
       }
     }
+  });
+  write();
+  return null;
+}
+
+export function hideItems(ids: string[]): string | null {
+  if (ids.length < 1 || ids.length > 80) return "Choose the lines to hide.";
+  const unique = [...new Set(ids)];
+  const found = getDb()
+    .prepare(`SELECT COUNT(*) AS n FROM items WHERE id IN (${unique.map(() => "?").join(",")})`)
+    .get(...unique) as { n: number };
+  if (found.n !== unique.length) return "That line is no longer on the budget.";
+  const write = getDb().transaction(() => {
+    const statement = getDb().prepare("UPDATE items SET hidden = 1 WHERE id = ?");
+    for (const id of unique) statement.run(id);
   });
   write();
   return null;

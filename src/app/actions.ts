@@ -15,7 +15,7 @@ import {
   savePassword,
   startSession,
 } from "@/lib/auth";
-import { addItem, arrangeItems, deleteItem, restoreItems, updateItem } from "@/lib/budget";
+import { addItem, arrangeItems, deleteItem, hideItems, restoreItems, updateItem } from "@/lib/budget";
 import { saveGoal, saveProfile as writeProfile } from "@/lib/profile";
 import type { BudgetItem, Frequency, ItemPatch, Kind, SectionId } from "@/lib/types";
 
@@ -151,6 +151,16 @@ export async function saveArrangement(entries: Arrangement) {
   const denied = await gate();
   if (denied) return { ok: false as const, error: denied };
   const error = arrangeItems(entries);
+  if (error) return { ok: false as const, error };
+  revalidatePath("/");
+  revalidatePath("/export");
+  return { ok: true as const };
+}
+
+export async function hideLines(ids: string[]) {
+  const denied = await gate();
+  if (denied) return { ok: false as const, error: denied };
+  const error = hideItems(ids);
   if (error) return { ok: false as const, error };
   revalidatePath("/");
   revalidatePath("/export");

@@ -12,6 +12,7 @@ function line(partial: Partial<BudgetItem> & Pick<BudgetItem, "id" | "name" | "k
     hidden: false,
     custom: false,
     note: "",
+    actualCents: null,
     ...partial,
   };
 }

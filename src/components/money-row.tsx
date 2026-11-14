@@ -50,6 +50,7 @@ export function MoneyRow({
     kind?: Kind;
     hidden?: boolean;
     note?: string;
+    actualCents?: number | null;
   }) => void;
   onDelete: () => void;
   onPlace: (dest: { kind: Kind; section: SectionId }) => void;
@@ -61,6 +62,9 @@ export function MoneyRow({
   const [amountError, setAmountError] = useState<string | null>(null);
   const [note, setNote] = useState(item.note ?? "");
   const [editingNote, setEditingNote] = useState(false);
+  const [spent, setSpent] = useState(item.actualCents == null ? "" : formatPlain(item.actualCents));
+  const [editingSpent, setEditingSpent] = useState(false);
+  const [spentError, setSpentError] = useState<string | null>(null);
   const noteRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -77,16 +81,23 @@ export function MoneyRow({
   }, [item.note]);
 
   useEffect(() => {
+    setSpent(item.actualCents == null ? "" : formatPlain(item.actualCents));
+    setSpentError(null);
+  }, [item.actualCents]);
+
+  useEffect(() => {
     if (editingNote) noteRef.current?.focus();
   }, [editingNote]);
 
   const converted =
     item.amountCents == null ? null : viewCents(item.amountCents, item.frequency, view);
   const share = converted == null ? null : shareOf(converted, incomeCents);
+  const spentConverted = item.actualCents == null ? null : viewCents(item.actualCents, item.frequency, view);
+  const spentGap = spentConverted == null || converted == null ? null : spentConverted - converted;
   const sectionLabel = SECTIONS.find((section) => section.id === item.section)?.label;
 
   return (
-    <div className="grid grid-cols-1 gap-2 border-b border-border/70 py-3 sm:grid-cols-[minmax(0,1.4fr)_8.75rem_10.25rem_7.5rem_2.25rem] sm:items-center sm:gap-3">
+    <div className="grid grid-cols-1 gap-2 border-b border-border/70 py-3 sm:grid-cols-[minmax(0,1.4fr)_8.75rem_10.25rem_7.5rem_2.25rem] sm:items-start sm:gap-3">
       <div className="flex min-w-0 items-start gap-1">
         <button
           type="button"
@@ -168,12 +179,48 @@ export function MoneyRow({
             {amountError}
           </p>
         ) : null}
+        {item.kind !== "income" && (editingSpent || item.actualCents != null) ? (
+          <div className="mt-1">
+            <p className="mb-1 text-xs text-muted-foreground">Spent</p>
+            <div className="relative">
+              <span className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-sm text-muted-foreground">
+                $
+              </span>
+              <Input
+                inputMode="decimal"
+                aria-label={`Spent for ${item.name}`}
+                aria-invalid={spentError ? true : undefined}
+                value={spent}
+                placeholder="0"
+                onChange={(event) => {
+                  setSpent(event.target.value);
+                  setSpentError(null);
+                }}
+                onBlur={() => {
+                  const parsed = parseDollars(spent);
+                  if (!parsed.ok) {
+                    setSpentError(parsed.error);
+                    return;
+                  }
+                  setEditingSpent(false);
+                  if (parsed.cents !== item.actualCents) onPatch({ actualCents: parsed.cents });
+                }}
+                className="pl-6 text-right tabular-nums"
+              />
+            </div>
+            {spentError ? (
+              <p role="alert" className="mt-1 text-xs text-destructive">
+                {spentError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
       </div>
       <select
         aria-label={`Frequency for ${item.name}`}
         value={item.frequency}
         onChange={(event) => onPatch({ frequency: event.target.value as Frequency })}
-        className="h-8 w-full rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="h-8 w-full rounded-lg border border-input bg-card px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:mt-1"
       >
         {FREQUENCIES.map((frequency) => (
           <option key={frequency} value={frequency}>
@@ -186,10 +233,19 @@ export function MoneyRow({
           {converted == null ? <span className="text-muted-foreground">—</span> : formatAud(converted)}
         </p>
         {share ? <p className="text-xs text-muted-foreground tabular-nums">{share} of income</p> : null}
+        {spentGap != null ? (
+          <p className={`text-xs tabular-nums ${spentGap > 100 ? "text-destructive" : "text-muted-foreground"}`}>
+            {Math.abs(spentGap) < 100
+              ? "On the plan"
+              : spentGap > 0
+                ? `${formatAud(spentGap)} over`
+                : `${formatAud(Math.abs(spentGap))} under`}
+          </p>
+        ) : null}
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" className="no-print justify-self-end" aria-label={`Options for ${item.name}`}>
+          <Button variant="ghost" size="icon-sm" className="no-print justify-self-end sm:mt-1" aria-label={`Options for ${item.name}`}>
             <MoreHorizontal />
           </Button>
         </DropdownMenuTrigger>
@@ -232,6 +288,11 @@ export function MoneyRow({
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
+          {item.kind !== "income" ? (
+            <DropdownMenuItem onSelect={() => setEditingSpent(true)}>
+              {item.actualCents == null ? "What we spent" : "Edit what we spent"}
+            </DropdownMenuItem>
+          ) : null}
           <DropdownMenuItem onSelect={() => setEditingNote(true)}>
             {item.note?.trim() ? "Edit note" : "Add a note"}
           </DropdownMenuItem>

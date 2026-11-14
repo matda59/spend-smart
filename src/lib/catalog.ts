@@ -42,6 +42,7 @@ export const CATALOG: CatalogItem[] = [
   line("income-other", "income", "Other", "monthly", "income"),
 
   line("home-mortgage", "housing", "Mortgage & rent", "monthly", "essential"),
+  line("housing-rent", "housing", "Rent", "monthly", "essential"),
   line("home-body-corporate", "home", "Body corporate fees", "quarterly", "essential"),
   line("home-rates", "home", "Council rates", "quarterly", "essential"),
   line("home-furniture", "home", "Furniture & appliances", "annually", "discretionary"),

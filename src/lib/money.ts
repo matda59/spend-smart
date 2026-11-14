@@ -75,6 +75,29 @@ export function summarise(items: BudgetItem[], view: Frequency): Totals {
   };
 }
 
+export function largestCosts(items: BudgetItem[], view: Frequency, limit = 5) {
+  return items
+    .filter((item) => !item.hidden && item.kind !== "income" && item.amountCents != null && item.amountCents > 0)
+    .map((item) => ({
+      id: item.id,
+      name: item.name,
+      cents: viewCents(item.amountCents ?? 0, item.frequency, view),
+    }))
+    .sort((left, right) => right.cents - left.cents)
+    .slice(0, limit);
+}
+
+export function spentAgainst(items: BudgetItem[], view: Frequency) {
+  const checked = items.filter(
+    (item) => !item.hidden && item.kind !== "income" && item.amountCents != null && item.actualCents != null,
+  );
+  return {
+    count: checked.length,
+    planned: checked.reduce((sum, item) => sum + viewCents(item.amountCents ?? 0, item.frequency, view), 0),
+    spent: checked.reduce((sum, item) => sum + viewCents(item.actualCents ?? 0, item.frequency, view), 0),
+  };
+}
+
 export function plainLeft(totals: Totals, view: Frequency): string {
   const period = PERIOD_NOUN[view];
   if (totals.income <= 0 && totals.essential <= 0) {

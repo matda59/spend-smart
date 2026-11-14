@@ -25,6 +25,7 @@ export type PackLine = {
   monthly: number;
   annually: number;
   note: string;
+  spent: string;
 };
 
 export type PackTotals = {
@@ -59,6 +60,7 @@ export function packLines(items: BudgetItem[]): PackLine[] {
         entered: formatAud(item.amountCents ?? 0),
         frequency: FREQUENCY_LABEL[item.frequency],
         note: item.note?.trim() ?? "",
+        spent: item.actualCents == null ? "" : formatAud(item.actualCents),
         ...values,
       };
     });
@@ -116,6 +118,7 @@ export function advisorCsv(items: BudgetItem[], profile: HouseholdProfile, prepa
     "Monthly",
     "Annually",
     "Note",
+    "Spent",
   ];
   const rows = [
     [displayName(profile), "", "", "", "", "", "", ""],
@@ -132,6 +135,7 @@ export function advisorCsv(items: BudgetItem[], profile: HouseholdProfile, prepa
       dollars(line.monthly),
       dollars(line.annually),
       line.note,
+      line.spent,
     ]),
     [],
     ...totals.map((total) => [

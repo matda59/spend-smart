@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { CATALOG } from "../src/lib/catalog";
-import { formatAud, parseDollars, plainLeft, shareOf, summarise, viewCents } from "../src/lib/money";
+import { formatAud, largestCosts, parseDollars, plainLeft, shareOf, spentAgainst, summarise, viewCents } from "../src/lib/money";
 import type { BudgetItem } from "../src/lib/types";
 
 function asItems(): BudgetItem[] {
@@ -14,6 +14,7 @@ function asItems(): BudgetItem[] {
     hidden: false,
     custom: false,
     note: "",
+    actualCents: null,
   }));
 }
 
@@ -30,6 +31,7 @@ function sample(): BudgetItem[] {
       hidden: false,
       custom: false,
       note: "",
+      actualCents: null,
     },
     {
       id: "rent",
@@ -42,6 +44,7 @@ function sample(): BudgetItem[] {
       hidden: false,
       custom: false,
       note: "",
+      actualCents: null,
     },
   ];
 }
@@ -92,6 +95,55 @@ test("dollar entry accepts blanks, commas, and cents", () => {
   assert.deepEqual(parseDollars("  $1,200.50 "), { ok: true, cents: 120_050 });
   assert.equal(parseDollars("-5").ok, false);
   assert.equal(parseDollars("12.345").ok, false);
+});
+
+test("the largest costs ignore income and blank lines", () => {
+  const costs = largestCosts(
+    [
+      ...sample(),
+      {
+        id: "power",
+        section: "home",
+        name: "Power",
+        amountCents: 40_000,
+        frequency: "monthly",
+        kind: "essential",
+        sort: 2,
+        hidden: false,
+        custom: false,
+        note: "",
+        actualCents: 30_000,
+      },
+    ],
+    "monthly",
+  );
+  assert.deepEqual(
+    costs.map((line) => line.name),
+    ["Power", "Rent"],
+  );
+  const checked = spentAgainst(
+    [
+      {
+        id: "power",
+        section: "home",
+        name: "Power",
+        amountCents: 40_000,
+        frequency: "monthly",
+        kind: "essential",
+        sort: 2,
+        hidden: false,
+        custom: false,
+        note: "",
+        actualCents: 30_000,
+      },
+    ],
+    "monthly",
+  );
+  assert.equal(checked.count, 1);
+  assert.equal(checked.planned, 40_000);
+  assert.equal(checked.spent, 30_000);
+  const withActual = sample().map((item) => (item.id === "rent" ? { ...item, actualCents: 99_000 } : item));
+  assert.equal(summarise(withActual, "monthly").essential, summarise(sample(), "monthly").essential);
 });
 
 test("the summary sentence says what is left", () => {
@@ -146,6 +198,13 @@ test("a new database is seeded with blank lines", async () => {
   assert.equal(columns.some((column) => column.name === "goal_cents"), true);
   const itemColumns = db.prepare("PRAGMA table_info(items)").all() as { name: string }[];
   assert.equal(itemColumns.some((column) => column.name === "note"), true);
+  assert.equal(itemColumns.some((column) => column.name === "actual_cents"), true);
+  const rent = db.prepare("SELECT name, section FROM items WHERE id = 'housing-rent'").get() as {
+    name: string;
+    section: string;
+  };
+  assert.equal(rent.name, "Rent");
+  assert.equal(rent.section, "housing");
   db.prepare("UPDATE items SET section = 'home', amount_cents = 180000 WHERE id = 'home-mortgage'").run();
   db.close();
   const reopened = openDatabase(path.join(dir, "budget.sqlite"));

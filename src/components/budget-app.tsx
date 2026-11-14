@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
-import { createItem, lockBudget, removeItem, restoreBudget, saveArrangement, saveItem, saveLeftoverGoal } from "@/app/actions";
+import { createItem, hideLines, lockBudget, removeItem, restoreBudget, saveArrangement, saveItem, saveLeftoverGoal } from "@/app/actions";
 import { MoneyRow } from "@/components/money-row";
 import { PassphraseDialog } from "@/components/passphrase-dialog";
 import { ShareBar } from "@/components/share-bar";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { placeLine } from "@/lib/arrange";
 import { groupColor } from "@/lib/bars";
-import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, formatPlain, isFrequency, parseDollars, plainLeft, shareOf, summarise, viewCents } from "@/lib/money";
+import { FREQUENCY_LABEL, PERIOD_NOUN, formatAud, formatPlain, isFrequency, largestCosts, parseDollars, plainLeft, shareOf, spentAgainst, summarise, viewCents } from "@/lib/money";
 import type { LeftoverGoal } from "@/lib/profile";
 import {
   SECTIONS,
@@ -47,18 +47,21 @@ export function BudgetApp({
   const [history, setHistory] = useState<BudgetItem[][]>([]);
   const [closed, setClosed] = useState<string[]>([]);
   const [keptVisible, setKeptVisible] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
   const dragIdRef = useRef<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const totals = useMemo(() => summarise(items, view), [items, view]);
+  const largest = useMemo(() => largestCosts(items, view), [items, view]);
+  const spent = useMemo(() => spentAgainst(items, view), [items, view]);
   const yearly = useMemo(() => summarise(items, "annually").leftAfterEssentials, [items]);
   const fortnightly = useMemo(() => summarise(items, "fortnightly").leftAfterEssentials, [items]);
   const hidden = items.filter((item) => item.hidden);
   const discretionaryHasAmount = items.some(
     (item) => item.kind === "discretionary" && !item.hidden && item.amountCents != null,
   );
-  const discretionaryOpen = showDiscretionary || discretionaryHasAmount || dragId != null;
+  const discretionaryOpen = showDiscretionary || discretionaryHasAmount || dragId != null || query.trim().length > 0;
   const short = totals.leftAfterEssentials < 0;
   const essentialShare = shareOf(totals.essential, totals.income);
   const discretionaryShare = shareOf(totals.discretionary, totals.income);
@@ -112,7 +115,7 @@ export function BudgetApp({
   }
 
   function sectionOpen(kind: Kind, section: SectionId) {
-    if (dragId) return true;
+    if (dragId || query.trim()) return true;
     return !closed.includes(`${kind}:${section}`);
   }
 
@@ -126,9 +129,24 @@ export function BudgetApp({
   }
 
   function shownRows(rows: BudgetItem[], kind: Kind) {
-    if (kind === "income" || showEmpty || dragId) return rows;
-    if (kind === "discretionary" && showDiscretionary && !discretionaryHasAmount) return rows;
-    return rows.filter((row) => row.amountCents != null || keptVisible.includes(row.id));
+    const needle = query.trim().toLowerCase();
+    const named = needle
+      ? rows.filter((row) => `${row.name} ${row.note}`.toLowerCase().includes(needle))
+      : rows;
+    if (needle || kind === "income" || showEmpty || dragId) return named;
+    if (kind === "discretionary" && showDiscretionary && !discretionaryHasAmount) return named;
+    return named.filter((row) => row.amountCents != null || keptVisible.includes(row.id));
+  }
+
+  function hideSection(kind: Kind, section: SectionId) {
+    const ids = items.filter((item) => item.kind === kind && item.section === section && !item.hidden).map((item) => item.id);
+    if (ids.length === 0) return;
+    remember();
+    setItems((current) => current.map((item) => (ids.includes(item.id) ? { ...item, hidden: true } : item)));
+    startTransition(async () => {
+      const result = await hideLines(ids);
+      if (!result.ok) setError(result.error);
+    });
   }
 
   function patchItem(id: string, patch: Parameters<typeof saveItem>[1]) {
@@ -263,7 +281,7 @@ export function BudgetApp({
   }
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
+    <main className="mx-auto w-full max-w-5xl px-4 pt-8 pb-24 sm:px-6 sm:py-12">
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-medium tracking-wide text-primary uppercase">
@@ -317,6 +335,12 @@ export function BudgetApp({
                 Left over is under the {formatAud(goalInView)} you want to keep this {PERIOD_NOUN[view]}.
               </p>
             ) : null}
+            {spent.count > 0 ? (
+              <p className="mt-1 max-w-xl text-sm text-muted-foreground">
+                On {spent.count === 1 ? "the line you've checked" : `${spent.count} lines you've checked`}, you spent{" "}
+                {formatAud(spent.spent)} against {formatAud(spent.planned)} planned.
+              </p>
+            ) : null}
           </div>
           <div className="no-print flex flex-wrap gap-1 rounded-xl bg-muted p-1" role="group" aria-label="View totals as">
             {VIEWS.map((option) => (
@@ -340,10 +364,33 @@ export function BudgetApp({
           <Stat label="Left over" value={totals.leftOver} share={leftOverShare} emphasize />
         </dl>
         <ShareBar items={items} view={view} />
+        {largest.length > 0 ? (
+          <div className="mt-5">
+            <p className="text-xs tracking-wide text-muted-foreground uppercase">Largest costs</p>
+            <ol className="mt-2 space-y-1">
+              {largest.map((line) => (
+                <li key={line.id} className="flex items-baseline justify-between gap-3 text-sm">
+                  <span>{line.name}</span>
+                  <span className="tabular-nums">
+                    {formatAud(line.cents)}
+                    {shareOf(line.cents, totals.income) ? ` · ${shareOf(line.cents, totals.income)}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
         <KeepAtLeast cents={goal.cents} frequency={goal.frequency} />
       </section>
 
-      <div className="no-print mt-4 flex flex-wrap gap-2">
+      <div className="no-print mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <Input
+          aria-label="Find a line"
+          value={query}
+          placeholder="Find a line"
+          onChange={(event) => setQuery(event.target.value)}
+          className="w-full sm:max-w-xs"
+        />
         <Button variant="outline" size="sm" onClick={toggleEmpty}>
           {showEmpty ? "Hide empty lines" : "Show empty lines"}
         </Button>
@@ -353,6 +400,12 @@ export function BudgetApp({
           </Button>
         ) : null}
       </div>
+      {query.trim() &&
+      !items.some(
+        (item) => !item.hidden && `${item.name} ${item.note}`.toLowerCase().includes(query.trim().toLowerCase()),
+      ) ? (
+        <p className="mt-3 text-sm text-muted-foreground">No lines match “{query.trim()}”.</p>
+      ) : null}
 
       {error ? (
         <p role="alert" className="mt-4 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -403,6 +456,7 @@ export function BudgetApp({
               total={rows.length === 0 ? undefined : subtotal}
               open={sectionOpen("essential", section.id)}
               onToggle={() => toggleSection("essential", section.id)}
+              onDismiss={() => hideSection("essential", section.id)}
             >
               <ColumnHead view={view} />
               {renderLines(rows, "essential", section.id)}
@@ -459,6 +513,7 @@ export function BudgetApp({
                   title={section.label}
                   open={sectionOpen("discretionary", section.id)}
                   onToggle={() => toggleSection("discretionary", section.id)}
+                  onDismiss={() => hideSection("discretionary", section.id)}
                 >
                   {renderLines(rows, "discretionary", section.id)}
                   <AddLine onAdd={(name) => addLine(section.id, "discretionary", name)} />
@@ -497,6 +552,10 @@ export function BudgetApp({
           ) : null}
         </section>
       ) : null}
+
+      <div className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur sm:hidden">
+        <p className="text-sm font-medium">{plainLeft(totals, view)}</p>
+      </div>
 
       <p className="mt-12 max-w-2xl text-sm text-muted-foreground">
         Totals use the same periods as the MoneySmart sheet: 52 weeks, 26 fortnights, 12 months, 4 quarters, and 1 year.
@@ -565,28 +624,32 @@ function Subsection({
   total,
   open = true,
   onToggle,
+  onDismiss,
   children,
 }: {
   title: string;
   total?: number;
   open?: boolean;
   onToggle?: () => void;
+  onDismiss?: () => void;
   children: ReactNode;
 }) {
   return (
     <div className="mt-6">
-      <button
-        type="button"
-        className="flex w-full items-baseline justify-between gap-3 text-left"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <h3 className="text-sm font-semibold tracking-wide uppercase">{title}</h3>
-        <span className="flex items-center gap-2">
-          {total != null ? <span className="text-sm tabular-nums text-muted-foreground">{formatAud(total)}</span> : null}
-          <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
-        </span>
-      </button>
+      <div className="flex items-baseline justify-between gap-3">
+        <button type="button" className="flex min-w-0 flex-1 items-baseline justify-between gap-3 text-left" aria-expanded={open} onClick={onToggle}>
+          <h3 className="text-sm font-semibold tracking-wide uppercase">{title}</h3>
+          <span className="flex items-center gap-2">
+            {total != null ? <span className="text-sm tabular-nums text-muted-foreground">{formatAud(total)}</span> : null}
+            <ChevronDown className={`size-4 text-muted-foreground transition-transform ${open ? "" : "-rotate-90"}`} />
+          </span>
+        </button>
+        {onDismiss ? (
+          <button type="button" className="no-print shrink-0 text-xs text-muted-foreground underline-offset-2 hover:underline" onClick={onDismiss}>
+            Not for us
+          </button>
+        ) : null}
+      </div>
       {open ? children : null}
     </div>
   );

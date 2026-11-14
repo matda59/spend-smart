@@ -43,6 +43,7 @@ export type BudgetItem = {
   hidden: boolean;
   custom: boolean;
   note: string;
+  actualCents: number | null;
 };
 
 export type ItemPatch = {
@@ -52,4 +53,5 @@ export type ItemPatch = {
   kind?: Kind;
   hidden?: boolean;
   note?: string;
+  actualCents?: number | null;
 };

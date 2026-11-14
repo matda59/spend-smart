@@ -48,6 +48,20 @@ function migrate(db: AppDatabase) {
   if (!items.has("note")) {
     db.exec("ALTER TABLE items ADD COLUMN note TEXT NOT NULL DEFAULT ''");
   }
+  if (!items.has("actual_cents")) {
+    db.exec("ALTER TABLE items ADD COLUMN actual_cents INTEGER");
+  }
+  const rent = db.prepare("SELECT id FROM items WHERE id = 'housing-rent'").get();
+  const mortgage = db.prepare("SELECT sort FROM items WHERE id = 'home-mortgage'").get() as
+    | { sort: number }
+    | undefined;
+  if (!rent && mortgage) {
+    db.prepare("UPDATE items SET sort = sort + 1 WHERE sort > ?").run(mortgage.sort);
+    db.prepare(
+      `INSERT INTO items (id, section, name, amount_cents, frequency, kind, sort, hidden, custom, note)
+       VALUES ('housing-rent', 'housing', 'Rent', NULL, 'monthly', 'essential', ?, 0, 0, '')`,
+    ).run(mortgage.sort + 1);
+  }
   db.prepare(
     "UPDATE items SET section = 'housing' WHERE id = 'home-mortgage' AND section = 'home'",
   ).run();

@@ -20,6 +20,8 @@ Open the budget. The figure at the top is what is left after essentials, for the
 - Empty lines stay hidden once you have entered an amount. **Show empty lines** brings the blanks back. Income lines stay visible.
 - The period you pick is remembered on this browser. **Undo** steps back the last change.
 - A line can carry a short note from its menu. **Keep at least** warns you when what is left drops under an amount you choose.
+- **Find a line** searches names and notes. **Largest costs** lists the five biggest amounts. **Not for us** hides a whole section; bring it back from hidden lines.
+- **What we spent** records an actual amount on a line. It does not change the plan. The summary says how that compares.
 - **Export** opens the advisor pack: fortnightly, monthly, and annual figures, a note, an **Export spreadsheet** download, and **Export as PDF**. The spreadsheet is `household-budget.csv`.
 
 This is a plan, the same kind of snapshot as the MoneySmart sheet. It does not import bank transactions or compare a month with what you actually spent.
